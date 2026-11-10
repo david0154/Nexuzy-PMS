@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const db = require('../../config/database');
-const { authenticateToken } = require('../../middleware/auth');
+const { authenticateToken, requireRoles } = require('../../middleware/auth');
 const { logAudit } = require('../../middleware/audit');
 
 // GET /api/v1/stays/in-house
@@ -270,25 +270,31 @@ router.post('/walk-in', authenticateToken, async (req, res) => {
 router.post('/:id/check-out', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { allow_override = false } = req.body;
+    const { allow_override = false, override_reason } = req.body;
 
     const stay = await db.get(
-      `SELECT s.*, r.room_number, f.id as folio_id, f.balance 
+      `SELECT s.*, r.room_number, f.id as folio_id, f.balance, f.property_id as folio_property_id, f.status as folio_status
        FROM stays s
        JOIN rooms r ON s.room_id = r.id
        LEFT JOIN folios f ON f.stay_id = s.id
-       WHERE s.id = ?`,
-      [id]
+       WHERE s.id = ? AND s.property_id = ?`,
+      [id, req.user.property_id]
     );
 
     if (!stay) return res.status(404).json({ success: false, error: 'Stay not found' });
     if (stay.status === 'checked_out') return res.status(400).json({ success: false, error: 'Stay is already checked out' });
 
-    if (stay.balance > 0 && !allow_override) {
-      return res.status(400).json({
+    const outstanding = Number(stay.balance || 0);
+    const overrideAuthorized = allow_override === true && ['admin', 'general_manager'].includes(req.user.role) &&
+      typeof override_reason === 'string' && override_reason.trim().length >= 8;
+    if (outstanding > 0.005 && !overrideAuthorized) {
+      return res.status(409).json({
         success: false,
-        error: `Cannot checkout: Room ${stay.room_number} has an unpaid folio balance of ₹${stay.balance}. Settle folio before checkout.`
+        error: `Cannot checkout: Room ${stay.room_number} has an unpaid folio balance of ₹${outstanding.toFixed(2)}. Settle folio first or obtain an authorised manager override with a reason.`
       });
+    }
+    if (stay.folio_id && (stay.folio_property_id !== req.user.property_id || stay.folio_status === 'closed')) {
+      return res.status(409).json({ success: false, error: 'Folio state does not permit checkout' });
     }
 
     const checkOutTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
@@ -319,7 +325,7 @@ router.post('/:id/check-out', authenticateToken, async (req, res) => {
       action: 'CHECK_OUT_STAY',
       entityType: 'stay',
       entityId: id,
-      details: { room_number: stay.room_number, folio_balance: stay.balance },
+      details: { room_number: stay.room_number, folio_balance: stay.balance, override_used: overrideAuthorized, override_reason: overrideAuthorized ? override_reason.trim() : null },
       req
     });
 
