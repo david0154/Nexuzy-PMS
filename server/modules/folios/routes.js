@@ -150,9 +150,23 @@ router.post('/:id/payments', authenticateToken, async (req, res) => {
     }
 
     const payId = uuidv4();
-    const receiptNo = `REC-${Date.now().toString().slice(-6)}`;
+    const receiptNo = `REC-${Date.now()}-${payId.slice(0, 6).toUpperCase()}`;
 
     await db.transaction(async () => {
+      // Re-check within the transaction to prevent stale-balance collection.
+      const currentFolio = await db.get(
+        'SELECT balance, status, property_id FROM folios WHERE id = ?',
+        [id]
+      );
+      if (!currentFolio || currentFolio.property_id !== req.user.property_id) {
+        const error = new Error('Folio not found'); error.statusCode = 404; throw error;
+      }
+      if (currentFolio.status !== 'open') {
+        const error = new Error('Cannot receive payment on a settled or closed folio'); error.statusCode = 409; throw error;
+      }
+      if (payAmt > Number(currentFolio.balance) + 0.005) {
+        const error = new Error('Payment exceeds the outstanding folio balance'); error.statusCode = 400; throw error;
+      }
       // 1. Record payment
       await db.run(
         `INSERT INTO payments 
@@ -202,7 +216,7 @@ router.post('/:id/payments', authenticateToken, async (req, res) => {
       folio: updatedFolio
     });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(err.statusCode || 500).json({ success: false, error: err.message });
   }
 });
 
