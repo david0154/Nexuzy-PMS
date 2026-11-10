@@ -65,9 +65,25 @@ router.post('/:id/entries', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Description and unit price are required' });
     }
 
-    const sub = Number(quantity) * Number(unit_price);
-    const taxAmt = Math.round(sub * (Number(tax_rate) / 100));
-    const total = sub + taxAmt;
+    const qty = Number(quantity);
+    const price = Number(unit_price);
+    const tax = Number(tax_rate);
+    if (!Number.isFinite(qty) || qty <= 0 || !Number.isFinite(price) || price < 0 ||
+        !Number.isFinite(tax) || tax < 0 || tax > 100) {
+      return res.status(400).json({ success: false, error: 'Quantity, unit price or tax rate is invalid' });
+    }
+
+    const targetFolio = await db.get('SELECT id, property_id, status FROM folios WHERE id = ?', [id]);
+    if (!targetFolio || targetFolio.property_id !== req.user.property_id) {
+      return res.status(404).json({ success: false, error: 'Folio not found' });
+    }
+    if (targetFolio.status !== 'open') {
+      return res.status(409).json({ success: false, error: 'Cannot add charges to a settled or closed folio' });
+    }
+
+    const sub = Math.round(qty * price * 100) / 100;
+    const taxAmt = Math.round(sub * (tax / 100) * 100) / 100;
+    const total = Math.round((sub + taxAmt) * 100) / 100;
     const entryId = uuidv4();
 
     await db.transaction(async () => {
@@ -75,7 +91,7 @@ router.post('/:id/entries', authenticateToken, async (req, res) => {
         `INSERT INTO folio_entries 
          (id, folio_id, date, department, description, quantity, unit_price, tax_rate, tax_amount, total_amount, created_by)
          VALUES (?, ?, date('now'), ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [entryId, id, department || 'other', description, quantity, unit_price, tax_rate, taxAmt, total, req.user.id]
+        [entryId, id, department || 'other', description, qty, price, tax, taxAmt, total, req.user.id]
       );
 
       await db.run(
