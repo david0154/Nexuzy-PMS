@@ -4,6 +4,7 @@
 const assert = require('assert');
 const app = require('../server/app');
 const http = require('http');
+const runSeed = require('../server/db/seed');
 
 let server;
 let baseUrl;
@@ -38,6 +39,9 @@ async function runTests() {
   console.log('========================================================');
   console.log('  Running Nexuzy PMS Acceptance & Integration Tests     ');
   console.log('========================================================\n');
+
+  // Ensure clean database state before test suite execution
+  await runSeed({ force: true });
 
   server = app.listen(0);
   const port = server.address().port;
@@ -181,8 +185,45 @@ async function runTests() {
     assert.strictEqual(shiftCloseRes.body.summary.variance, 0);
     console.log('✔ Test 14 Passed: Cashier Shift Opening, Reconciliation & Closing OK');
 
+    // 15. Setup Status Verification (Fresh Install & Initialized Check)
+    const setupStatusRes = await request('GET', '/api/v1/setup/status');
+    assert.strictEqual(setupStatusRes.status, 200);
+    assert.strictEqual(setupStatusRes.body.initialized, true, 'Property is initialized');
+    assert.ok(setupStatusRes.body.property.name, 'Property name should be present');
+    console.log(`✔ Test 15 Passed: Setup Status Endpoint OK (Property: "${setupStatusRes.body.property.name}")`);
+
+    // 16. SMTP Email Settings Update & Verification
+    const smtpRes = await request('POST', '/api/v1/settings/smtp', {
+      smtp_host: 'smtp.example.com',
+      smtp_port: 587,
+      smtp_secure: false,
+      smtp_user: 'notifications@nexuzy.in',
+      smtp_pass: 'secretpassword',
+      from_email: 'noreply@nexuzy.in'
+    });
+    assert.strictEqual(smtpRes.status, 200);
+    assert.strictEqual(smtpRes.body.success, true);
+    console.log('✔ Test 16 Passed: SMTP Settings Configuration Saved OK');
+
+    // 17. NXP Backup Export (.nxp Package Generation)
+    const exportRes = await request('GET', '/api/v1/backup/export-nxp');
+    assert.strictEqual(exportRes.status, 200);
+    assert.strictEqual(exportRes.body.format, 'NEXUZY_PMS_PACKAGE');
+    assert.ok(exportRes.body.checksum, 'Package should include SHA256 checksum');
+    assert.ok(exportRes.body.tables.properties.length > 0, 'Export should contain property records');
+    assert.ok(exportRes.body.tables.rooms.length > 0, 'Export should contain room records');
+    console.log(`✔ Test 17 Passed: .nxp Backup Export (Checksum: ${exportRes.body.checksum.substring(0, 12)}...) OK`);
+
+    // 18. NXP Backup Restore (Cross-Computer Portability)
+    const restoreRes = await request('POST', '/api/v1/backup/restore-nxp', {
+      package: exportRes.body
+    });
+    assert.strictEqual(restoreRes.status, 200);
+    assert.strictEqual(restoreRes.body.success, true);
+    console.log('✔ Test 18 Passed: .nxp Backup Import & Cross-Computer Restoration OK');
+
     console.log('\n========================================================');
-    console.log('  ALL 14 ACCEPTANCE & INTEGRATION TESTS PASSED 100%!    ');
+    console.log('  ALL 18 ACCEPTANCE & INTEGRATION TESTS PASSED 100%!    ');
     console.log('========================================================\n');
   } catch (err) {
     console.error('❌ Test suite failed:', err);

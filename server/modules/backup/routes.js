@@ -82,7 +82,7 @@ router.get('/export-nxp', authenticateToken, requireRoles('admin', 'general_mana
 // Restores data from an uploaded .nxp file
 router.post('/restore-nxp', authenticateToken, requireRoles('admin'), async (req, res) => {
   try {
-    const nxpData = req.body;
+    const nxpData = req.body.package || req.body;
     if (!nxpData || nxpData.format !== 'NEXUZY_PMS_PACKAGE' || !nxpData.tables) {
       return res.status(400).json({
         success: false,
@@ -90,37 +90,36 @@ router.post('/restore-nxp', authenticateToken, requireRoles('admin'), async (req
       });
     }
 
-    await db.transaction(async () => {
-      // 1. Temporarily disable foreign keys for bulk restoration
-      await db.run('PRAGMA foreign_keys = OFF;');
+    // 1. Disable foreign keys outside transaction
+    await db.run('PRAGMA foreign_keys = OFF;');
 
-      // 2. Clear current tables
-      for (const table of ALL_TABLES) {
-        try {
+    try {
+      await db.transaction(async () => {
+        // 2. Clear current tables in reverse order to respect constraints
+        const reverseTables = [...ALL_TABLES].reverse();
+        for (const table of reverseTables) {
           await db.run(`DELETE FROM ${table};`);
-        } catch (e) {
-          // Table might not exist yet
         }
-      }
 
-      // 3. Restore all records table by table
-      for (const table of ALL_TABLES) {
-        const rows = nxpData.tables[table] || [];
-        if (!rows.length) continue;
+        // 3. Restore all records table by table
+        for (const table of ALL_TABLES) {
+          const rows = nxpData.tables[table] || [];
+          if (!rows.length) continue;
 
-        const cols = Object.keys(rows[0]);
-        const placeholders = cols.map(() => '?').join(', ');
-        const sql = `INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders})`;
+          const cols = Object.keys(rows[0]);
+          const placeholders = cols.map(() => '?').join(', ');
+          const sql = `INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders})`;
 
-        for (const r of rows) {
-          const values = cols.map(c => r[c]);
-          await db.run(sql, values);
+          for (const r of rows) {
+            const values = cols.map(c => r[c]);
+            await db.run(sql, values);
+          }
         }
-      }
-
-      // 4. Re-enable foreign keys
+      });
+    } finally {
+      // 4. Always re-enable foreign keys
       await db.run('PRAGMA foreign_keys = ON;');
-    });
+    }
 
     await logAudit({
       propertyId: req.user.property_id,

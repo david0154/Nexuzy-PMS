@@ -4,8 +4,19 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
 
-async function runSeed() {
+async function runSeed(options = {}) {
+  const force = options.force || false;
   console.log('--- Initializing Nexuzy PMS Database & Seeding Initial Data ---');
+
+  if (force) {
+    await db.exec('PRAGMA foreign_keys = OFF;');
+    const tables = await db.all("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
+    for (const t of tables) {
+      await db.exec(`DROP TABLE IF EXISTS "${t.name}"`);
+    }
+    await db.exec('PRAGMA foreign_keys = ON;');
+    console.log('✓ Cleared previous database tables for clean re-seed');
+  }
 
   // 1. Read and execute schema
   const schemaPath = path.join(__dirname, 'schema.sql');
@@ -14,10 +25,12 @@ async function runSeed() {
   console.log('✓ Database schema executed successfully');
 
   // Check if property exists
-  const existingProp = await db.get("SELECT id FROM properties WHERE code = 'NEX-01'");
-  if (existingProp) {
-    console.log('Database already seeded. Skipping initial seeding.');
-    return;
+  if (!force) {
+    const existingProp = await db.get("SELECT id FROM properties WHERE code = 'NEX-01'");
+    if (existingProp) {
+      console.log('Database already seeded. Skipping initial seeding.');
+      return;
+    }
   }
 
   const propId = 'prop-nexuzy-01';
