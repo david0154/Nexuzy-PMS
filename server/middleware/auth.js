@@ -1,6 +1,13 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'nexuzy-pms-secret-key-2026';
+// A random per-process development key avoids a known, reusable signing secret.
+// Production deployments must provide a persistent, high-entropy JWT_SECRET.
+const isProduction = process.env.NODE_ENV === 'production';
+if (isProduction && (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32)) {
+  throw new Error('JWT_SECRET must be configured with at least 32 characters in production');
+}
+const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(48).toString('hex');
 
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
