@@ -22,7 +22,18 @@ const settingsRoutes = require('./modules/settings/routes');
 
 const app = express();
 
-app.use(cors());
+// Same-origin is the default. Cross-origin clients must be explicitly allowlisted.
+const allowedOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Origin is not allowed by CORS'));
+  },
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
