@@ -157,6 +157,22 @@ async function runTests() {
     assert.strictEqual(inv.cgst, inv.sgst, 'CGST and SGST must match for intra-state GST');
     console.log(`✔ Test 11 Passed: Combined GST Tax Invoice (Subtotal: ₹${inv.subtotal}, CGST: ₹${inv.cgst}, SGST: ₹${inv.sgst}, Total: ₹${inv.grand_total}) OK`);
 
+    // 11a. Reject unsupported payment methods before writing to the ledger.
+    const invalidMethodRes = await request('POST', '/api/v1/folios/folio-101/payments', {
+      amount: 1,
+      payment_method: 'crypto'
+    });
+    assert.strictEqual(invalidMethodRes.status, 400);
+    console.log('✔ Test 11a Passed: Unsupported Folio Payment Method Rejected');
+
+    // 11b. Reject attempts to collect more than the folio balance.
+    const overpaymentRes = await request('POST', '/api/v1/folios/folio-101/payments', {
+      amount: 999999999,
+      payment_method: 'cash'
+    });
+    assert.strictEqual(overpaymentRes.status, 400);
+    console.log('✔ Test 11b Passed: Folio Overpayment Rejected');
+
     // 12. Night Audit & Business Date Advance (Section 25)
     const auditRes = await request('POST', '/api/v1/night-audit/run');
     assert.strictEqual(auditRes.status, 200);
