@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexuzy PMS - Property, Restaurant & Operations Management</title>
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans antialiased min-h-screen flex flex-col selection:bg-indigo-500 selection:text-white">
+
+  <!-- ========================================================= -->
+  <!-- 1ST TIME HOTEL SETUP WIZARD MODAL (If Not Initialized) -->
+  <!-- ========================================================= -->
+  <div id="modal-setup-wizard" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-md hidden overflow-y-auto p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-2xl w-full mx-auto my-8 shadow-2xl">
+      <div class="text-center mb-6">
+        <img src="/logo.png" alt="Nexuzy PMS" class="h-20 mx-auto mb-3 object-contain">
+        <h1 class="text-2xl font-black text-white tracking-tight">Welcome to Nexuzy PMS</h1>
+        <p class="text-slate-400 text-xs mt-1">First-Time Setup: Configure your hotel, banking, taxes & administrator account</p>
+      </div>
+
+      <form id="form-setup-wizard" onsubmit="handleFirstTimeSetup(event)" class="space-y-4">
+        <!-- 1. Property Details -->
+        <div class="p-4 bg-slate-800/40 rounded-2xl border border-slate-800 space-y-3">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-indigo-400">1. Hotel & Property Information</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="sm:col-span-2">
+              <label class="input-label">Hotel / Property Name *</label>
+              <input type="text" id="setup-hotel-name" required class="input-field" placeholder="e.g. Grand Horizon Palace">
+            </div>
+            <div>
+              <label class="input-label">Property Code</label>
+              <input type="text" id="setup-hotel-code" class="input-field" placeholder="e.g. GHP-01">
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="input-label">Contact Phone *</label>
+              <input type="text" id="setup-phone" required class="input-field" placeholder="+91 98765 43210">
+            </div>
+            <div>
+              <label class="input-label">Contact Email</label>
+              <input type="email" id="setup-email" class="input-field" placeholder="reservations@grandhorizon.com">
+            </div>
+          </div>
+          <div>
+            <label class="input-label">Address</label>
+            <input type="text" id="setup-address" class="input-field" placeholder="Street / Road address">
+          </div>
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="input-label">City</label>
+              <input type="text" id="setup-city" class="input-field" placeholder="City">
+            </div>
+            <div>
+              <label class="input-label">State</label>
+              <input type="text" id="setup-state" class="input-field" placeholder="State">
+            </div>
+            <div>
+              <label class="input-label">Country</label>
+              <input type="text" id="setup-country" value="India" class="input-field">
+            </div>
+          </div>
+          <div>
+            <label class="input-label">GSTIN / Tax ID (Optional)</label>
+            <input type="text" id="setup-gstin" class="input-field" placeholder="e.g. 29AABCN1234F1Z5">
+          </div>
+        </div>
+
+        <!-- 2. Banking, UPI & Taxes -->
+        <div class="p-4 bg-slate-800/40 rounded-2xl border border-slate-800 space-y-3">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-400">2. Banking, UPI & Tax Setup</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="input-label">Bank Name</label>
+              <input type="text" id="setup-bank-name" class="input-field" placeholder="e.g. HDFC Bank">
+            </div>
+            <div>
+              <label class="input-label">Account Number</label>
+              <input type="text" id="setup-bank-acc" class="input-field" placeholder="e.g. 50200012345678">
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="input-label">IFSC Code</label>
+              <input type="text" id="setup-bank-ifsc" class="input-field" placeholder="e.g. HDFC0001234">
+            </div>
+            <div>
+              <label class="input-label">Branch Name</label>
+              <input type="text" id="setup-bank-branch" class="input-field" placeholder="e.g. Indiranagar Branch">
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="input-label">UPI ID / VPA (For Invoices)</label>
+              <input type="text" id="setup-upi-id" class="input-field" placeholder="e.g. hotel@okhdfcbank">
+            </div>
+            <div>
+              <label class="input-label">UPI Payee Name</label>
+              <input type="text" id="setup-upi-name" class="input-field" placeholder="e.g. Grand Horizon Hospitality">
+            </div>
+          </div>
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="input-label">Room GST %</label>
+              <input type="number" id="setup-room-tax" value="12" step="0.5" class="input-field">
+            </div>
+            <div>
+              <label class="input-label">Restaurant GST %</label>
+              <input type="number" id="setup-rest-tax" value="5" step="0.5" class="input-field">
+            </div>
+            <div>
+              <label class="input-label">Currency Symbol</label>
+              <input type="text" id="setup-currency-sym" value="₹" class="input-field">
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Super Admin Account -->
+        <div class="p-4 bg-slate-800/40 rounded-2xl border border-slate-800 space-y-3">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-amber-400">3. Master Administrator Account</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="input-label">Admin Full Name *</label>
+              <input type="text" id="setup-admin-name" required class="input-field" placeholder="Owner / General Manager">
+            </div>
+            <div>
+              <label class="input-label">Admin Email</label>
+              <input type="email" id="setup-admin-email" class="input-field" placeholder="admin@hotel.com">
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="input-label">Admin Username *</label>
+              <input type="text" id="setup-admin-username" required class="input-field" value="admin">
+            </div>
+            <div>
+              <label class="input-label">Admin Password *</label>
+              <input type="password" id="setup-admin-password" required class="input-field" placeholder="Create a secure password">
+            </div>
+          </div>
+        </div>
+
+        <div id="setup-error" class="text-rose-400 text-xs hidden"></div>
+
+        <button type="submit" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition text-sm shadow-xl shadow-indigo-600/30">
+          🚀 Complete Setup & Launch Property
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- LOGIN MODAL / OVERLAY (Shown if initialized but not authenticated) -->
+  <div id="login-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
+      <div class="text-center mb-6">
+        <img src="/logo.png" alt="Nexuzy PMS" class="h-20 mx-auto mb-3 object-contain">
+        <h1 class="text-xl font-bold text-white tracking-tight">Nexuzy PMS</h1>
+        <p class="text-slate-400 text-xs mt-1">Property, Restaurant & Operations Management</p>
+      </div>
+
+      <form id="login-form" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Username</label>
+          <input type="text" id="login-username" required
+            class="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Password</label>
+          <input type="password" id="login-password" required
+            class="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+        </div>
+        <div id="login-error" class="text-rose-400 text-xs hidden"></div>
+
+        <button type="submit"
+          class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-xl transition duration-150 shadow-lg shadow-indigo-600/30 text-sm">
+          Sign In to Property
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MAIN APP WRAPPER -->
+  <div id="app-wrapper" class="flex-1 flex flex-col min-h-screen">
+    <!-- Top Header Bar -->
+    <header class="bg-slate-900/90 backdrop-blur border-b border-slate-800 sticky top-0 z-40 px-4 lg:px-8 py-2.5 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <img src="/logo.png" alt="Nexuzy PMS Logo" class="h-9 w-auto object-contain">
+        <div>
+          <div class="flex items-center space-x-2">
+            <span id="header-prop-name" class="font-bold text-white tracking-tight leading-none text-base">Nexuzy PMS</span>
+            <span id="header-prop-code" class="text-[11px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">PMS</span>
+          </div>
+          <div class="text-[11px] text-slate-400 mt-0.5">GSTIN: <span id="header-gstin" class="font-mono text-slate-300">Optional</span></div>
+        </div>
+      </div>
+
+      <!-- Center Status Badges -->
+      <div class="hidden md:flex items-center space-x-3">
+        <div class="flex items-center space-x-1.5 px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-lg text-amber-300 text-xs font-medium">
+          <span>📅</span>
+          <span>Business Date:</span>
+          <span id="header-business-date" class="font-bold font-mono">Today</span>
+        </div>
+        <div class="flex items-center space-x-1.5 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-300 text-xs font-medium">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>System Online</span>
+        </div>
+      </div>
+
+      <!-- User Profile & Actions -->
+      <div class="flex items-center space-x-3">
+        <div class="text-right hidden sm:block">
+          <div id="header-user-name" class="text-xs font-semibold text-white">Administrator</div>
+          <div id="header-user-role" class="text-[10px] uppercase tracking-wider text-indigo-400 font-bold">admin</div>
+        </div>
+        <button onclick="handleLogout()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-medium rounded-lg transition duration-150">
+          Sign Out
+        </button>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs Bar -->
+    <nav class="bg-slate-900 border-b border-slate-800 px-4 lg:px-8 flex overflow-x-auto no-scrollbar space-x-1 py-1.5 text-xs font-medium sticky top-[57px] z-30">
+      <button onclick="switchTab('dashboard')" id="tab-btn-dashboard" class="tab-button active-tab">
+        📊 Dashboard
+      </button>
+      <button onclick="switchTab('frontdesk')" id="tab-btn-frontdesk" class="tab-button">
+        🛎️ Front Desk
+      </button>
+      <button onclick="switchTab('groups')" id="tab-btn-groups" class="tab-button">
+        👥 Group Bookings <span class="ml-1 text-[10px] px-1 py-0.2 rounded bg-indigo-500/20 text-indigo-300 font-bold">Staggered</span>
+      </button>
+      <button onclick="switchTab('reservations')" id="tab-btn-reservations" class="tab-button">
+        📅 Reservations
+      </button>
+      <button onclick="switchTab('rooms')" id="tab-btn-rooms" class="tab-button">
+        🛏️ Rooms & HK
+      </button>
+      <button onclick="switchTab('restaurant')" id="tab-btn-restaurant" class="tab-button">
+        🍽️ Restaurant POS & KDS
+      </button>
+      <button onclick="switchTab('folios')" id="tab-btn-folios" class="tab-button">
+        💳 Billing & GST Folios
+      </button>
+      <button onclick="switchTab('cashier')" id="tab-btn-cashier" class="tab-button">
+        💵 Cashier Shifts
+      </button>
+      <button onclick="switchTab('inventory')" id="tab-btn-inventory" class="tab-button">
+        📦 Inventory
+      </button>
+      <button onclick="switchTab('nightaudit')" id="tab-btn-nightaudit" class="tab-button">
+        🌙 Night Audit
+      </button>
+      <button onclick="switchTab('reports')" id="tab-btn-reports" class="tab-button">
+        📈 Reports & Audit
+      </button>
+      <button onclick="switchTab('settings')" id="tab-btn-settings" class="tab-button">
+        ⚙️ Settings & Backup
+      </button>
+    </nav>
+
+    <!-- CONTENT CONTAINER -->
+    <main class="flex-1 p-4 lg:p-8 max-w-7xl mx-auto w-full">
+
+      <!-- ========================================================= -->
+      <!-- TAB 1: DASHBOARD -->
+      <!-- ========================================================= -->
+      <section id="tab-dashboard" class="tab-content">
+        <!-- Quick Action Shortcuts -->
+        <div class="mb-6 flex flex-wrap items-center justify-between gap-3 bg-slate-800/40 border border-slate-800 p-4 rounded-2xl">
+          <div>
+            <h2 class="text-lg font-bold text-white">Hospitality Operations Control</h2>
+            <p class="text-xs text-slate-400">Real-time room occupancy, reservations, folios & restaurant POS</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="openWalkInModal()" class="btn-primary">
+              ⚡ Instant Walk-In
+            </button>
+            <button onclick="openNewReservationModal()" class="btn-secondary">
+              ➕ New Reservation
+            </button>
+            <button onclick="openNewGroupModal()" class="btn-secondary">
+              👥 New Group
+            </button>
+            <button onclick="switchTab('restaurant')" class="btn-secondary">
+              🍽️ Open POS
+            </button>
+            <button onclick="switchTab('nightaudit')" class="btn-secondary">
+              🌙 Night Audit
+            </button>
+          </div>
+        </div>
+
+        <!-- Metric Stat Cards Grid -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+          <div class="stat-card">
+            <div class="text-slate-400 text-xs font-medium">Occupancy Rate</div>
+            <div id="stat-occupancy-rate" class="text-2xl font-black text-indigo-400 mt-1">0%</div>
+            <div class="text-[11px] text-slate-400 mt-1"><span id="stat-occupied-rooms" class="text-white font-bold">0</span> of <span id="stat-total-rooms">0</span> rooms</div>
+          </div>
+          <div class="stat-card">
+            <div class="text-slate-400 text-xs font-medium">Available Rooms</div>
+            <div id="stat-available-rooms" class="text-2xl font-black text-emerald-400 mt-1">0</div>
+            <div class="text-[11px] text-slate-400 mt-1"><span id="stat-clean-rooms" class="text-emerald-300">0</span> clean ready</div>
+          </div>
+          <div class="stat-card">
+            <div class="text-slate-400 text-xs font-medium">In-House Guests</div>
+            <div id="stat-inhouse-guests" class="text-2xl font-black text-sky-400 mt-1">0</div>
+            <div class="text-[11px] text-slate-400 mt-1">Active checked-in stays</div>
+          </div>
+          <div class="stat-card">
+            <div class="text-slate-400 text-xs font-medium">Today's Arrivals</div>
+            <div id="stat-today-arrivals" class="text-2xl font-black text-amber-400 mt-1">0</div>
+            <div class="text-[11px] text-slate-400 mt-1">Expected today</div>
+          </div>
+          <div class="stat-card">
+            <div class="text-slate-400 text-xs font-medium">Restaurant Orders</div>
+            <div id="stat-open-kots" class="text-2xl font-black text-rose-400 mt-1">0</div>
+            <div class="text-[11px] text-slate-400 mt-1"><span id="stat-active-tables" class="text-white font-bold">0</span> tables occupied</div>
+          </div>
+          <div class="stat-card">
+            <div class="text-slate-400 text-xs font-medium">Today Collections</div>
+            <div id="stat-today-collections" class="text-2xl font-black text-emerald-400 mt-1">₹0</div>
+            <div class="text-[11px] text-slate-400 mt-1">Cash, Card, UPI</div>
+          </div>
+        </div>
+
+        <!-- Room Rack Live Grid -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 mb-6">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="font-bold text-white text-base">Live Room Rack & Status</h3>
+              <p class="text-xs text-slate-400">Click any room for quick stay details, folio or housekeeping action</p>
+            </div>
+            <div class="flex items-center space-x-3 text-xs">
+              <span class="flex items-center"><span class="w-3 h-3 rounded-full bg-emerald-500 mr-1.5"></span> Available</span>
+              <span class="flex items-center"><span class="w-3 h-3 rounded-full bg-indigo-500 mr-1.5"></span> Occupied</span>
+              <span class="flex items-center"><span class="w-3 h-3 rounded-full bg-amber-500 mr-1.5"></span> Dirty</span>
+              <span class="flex items-center"><span class="w-3 h-3 rounded-full bg-rose-500 mr-1.5"></span> Out of Order</span>
+            </div>
+          </div>
+
+          <div id="dashboard-room-rack" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-5 gap-3">
+            <!-- Dynamically populated room cards -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- TAB 2: FRONT DESK & STAYS -->
+      <!-- ========================================================= -->
+      <section id="tab-frontdesk" class="tab-content hidden">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div>
+            <h2 class="text-lg font-bold text-white">Front Desk & In-House Stays</h2>
+            <p class="text-xs text-slate-400">Manage currently checked-in guests, departures, room moves, and checkouts</p>
+          </div>
+          <button onclick="openWalkInModal()" class="btn-primary">
+            ⚡ Walk-In Immediate Check-In
+          </button>
+        </div>
+
+        <!-- In-House Stays Table -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden mb-6">
+          <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+            <h3 class="font-bold text-white text-sm">Currently Occupied Stays (<span id="inhouse-count">0</span>)</h3>
+            <input type="text" id="search-inhouse" onkeyup="filterInHouseTable()" placeholder="Search guest, room #..."
+              class="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-300" id="table-inhouse">
+              <thead class="bg-slate-800/60 text-slate-400 uppercase tracking-wider text-[11px]">
+                <tr>
+                  <th class="px-4 py-3">Room</th>
+                  <th class="px-4 py-3">Stay Reference</th>
+                  <th class="px-4 py-3">Guest Name</th>
+                  <th class="px-4 py-3">Phone</th>
+                  <th class="px-4 py-3">Check-In</th>
+                  <th class="px-4 py-3">Expected Out</th>
+                  <th class="px-4 py-3 text-right">Folio Balance</th>
+                  <th class="px-4 py-3 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-inhouse" class="divide-y divide-slate-800">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Today's Expected Arrivals -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+          <div class="p-4 border-b border-slate-800">
+            <h3 class="font-bold text-white text-sm">Today's Expected Arrivals</h3>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="bg-slate-800/60 text-slate-400 uppercase tracking-wider text-[11px]">
+                <tr>
+                  <th class="px-4 py-3">Booking #</th>
+                  <th class="px-4 py-3">Guest Name</th>
+                  <th class="px-4 py-3">Room Type</th>
+                  <th class="px-4 py-3">Assigned Room</th>
+                  <th class="px-4 py-3">Deposit Paid</th>
+                  <th class="px-4 py-3 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-arrivals" class="divide-y divide-slate-800">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- TAB 3: GROUP BOOKINGS (STAGGERED CHECK-IN/OUT) -->
+      <!-- ========================================================= -->
+      <section id="tab-groups" class="tab-content hidden">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div>
+            <h2 class="text-lg font-bold text-white">Group Master Reservations & Staggered Stays</h2>
+            <p class="text-xs text-slate-400">Independent room arrival & departure schedules under one master booking (PRD Section 7)</p>
+          </div>
+          <button onclick="openNewGroupModal()" class="btn-primary">
+            ➕ Create Group Booking
+          </button>
+        </div>
+
+        <div id="groups-list-container" class="space-y-6">
+          <!-- Dynamically populated -->
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- TAB 4: RESERVATIONS -->
+      <!-- ========================================================= -->
+      <section id="tab-reservations" class="tab-content hidden">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div>
+            <h2 class="text-lg font-bold text-white">Individual Reservations</h2>
+            <p class="text-xs text-slate-400">Advance bookings, deposits, and transactional double-booking protection</p>
+          </div>
+          <button onclick="openNewReservationModal()" class="btn-primary">
+            ➕ New Reservation
+          </button>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="bg-slate-800/60 text-slate-400 uppercase tracking-wider text-[11px]">
+                <tr>
+                  <th class="px-4 py-3">Booking Ref</th>
+                  <th class="px-4 py-3">Guest</th>
+                  <th class="px-4 py-3">Room Type</th>
+                  <th class="px-4 py-3">Dates</th>
+                  <th class="px-4 py-3">Rate/Night</th>
+                  <th class="px-4 py-3">Deposit</th>
+                  <th class="px-4 py-3">Status</th>
+                  <th class="px-4 py-3 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-reservations" class="divide-y divide-slate-800">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- TAB 5: ROOMS & HOUSEKEEPING -->
+      <!-- ========================================================= -->
+      <section id="tab-rooms" class="tab-content hidden">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div>
+            <h2 class="text-lg font-bold text-white">Housekeeping & Maintenance Operations</h2>
+            <p class="text-xs text-slate-400">Keep commercial availability separate from cleaning and maintenance readiness</p>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="openNewMaintenanceModal()" class="btn-secondary">
+              🔧 Report Maintenance
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <h3 class="font-bold text-white text-base mb-3">Daily Housekeeping Cleaning Board</h3>
+            <div id="housekeeping-tasks-list" class="space-y-3">
+              <!-- Dynamically populated tasks -->
+            </div>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <h3 class="font-bold text-white text-base mb-3">Active Maintenance Tickets</h3>
+            <div id="maintenance-tickets-list" class="space-y-3">
+              <!-- Dynamically populated tickets -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- TAB 6: RESTAURANT POS & KDS -->
+      <!-- ========================================================= -->
+      <section id="tab-restaurant" class="tab-content hidden">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div>
+            <h2 class="text-lg font-bold text-white">Restaurant, Bar & Room Service POS</h2>
+            <p class="text-xs text-slate-400">Independent restaurant billing, 5% GST, KOT generator & "Post to Room" support</p>
+          </div>
+          <div class="flex space-x-2">
+            <button onclick="setPosSubTab('pos')" id="pos-btn-pos" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold">POS Order</button>
+            <button onclick="setPosSubTab('kds')" id="pos-btn-kds" class="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-semibold">Kitchen KDS Board</button>
+          </div>
+        </div>
+
+        <div id="subtab-pos" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-2 space-y-5">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Select Table or Order Type</span>
+                <div class="flex gap-2">
+                  <button type="button" onclick="selectOrderType('dine_in')" id="btn-type-dinein" class="px-2.5 py-1 text-xs rounded-lg bg-indigo-600 text-white font-medium">Dine-In Table</button>
+                  <button type="button" onclick="selectOrderType('takeaway')" id="btn-type-takeaway" class="px-2.5 py-1 text-xs rounded-lg bg-slate-800 text-slate-300 font-medium">Takeaway</button>
+                  <button type="button" onclick="selectOrderType('room_service')" id="btn-type-roomservice" class="px-2.5 py-1 text-xs rounded-lg bg-slate-800 text-slate-300 font-medium">Room Service</button>
+                </div>
+              </div>
+
+              <div id="pos-tables-grid" class="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                <!-- Dynamically populated tables -->
+              </div>
+
+              <div id="pos-room-selector-container" class="mt-3 pt-3 border-t border-slate-800 hidden">
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Select Occupied Room for Room Service:</label>
+                <select id="pos-room-select" class="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs">
+                </select>
+              </div>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+              <div id="pos-category-pills" class="flex flex-wrap gap-2 mb-4">
+                <!-- Category pills -->
+              </div>
+              <div id="pos-menu-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                <!-- Menu item cards -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Order Cart -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col h-fit sticky top-24">
+            <div class="border-b border-slate-800 pb-3 mb-3 flex items-center justify-between">
+              <div>
+                <h3 class="font-bold text-white text-base">Active Order Cart</h3>
+                <span id="cart-order-type-badge" class="text-[10px] px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-semibold uppercase">Dine-In</span>
+              </div>
+              <button onclick="clearPosCart()" class="text-xs text-slate-500 hover:text-rose-400">Clear</button>
+            </div>
+
+            <div id="pos-cart-items" class="space-y-2 mb-4 max-h-72 overflow-y-auto divide-y divide-slate-800">
+              <div class="text-center py-8 text-slate-500 text-xs">No items selected yet. Click menu items to add.</div>
+            </div>
+
+            <div class="border-t border-slate-800 pt-3 space-y-1.5 text-xs">
+              <div class="flex justify-between text-slate-400">
+                <span>Subtotal</span>
+                <span id="pos-cart-subtotal" class="font-mono text-white">₹0.00</span>
+              </div>
+              <div class="flex justify-between text-slate-400">
+                <span>Restaurant GST (5%)</span>
+                <span id="pos-cart-tax" class="font-mono text-white">₹0.00</span>
+              </div>
+              <div class="flex justify-between text-sm font-bold text-white pt-2 border-t border-slate-800">
+                <span>Grand Total</span>
+                <span id="pos-cart-total" class="font-mono text-emerald-400 text-base">₹0.00</span>
+              </div>
+            </div>
+
+            <div class="mt-4 space-y-2">
+              <button onclick="handleSendToKitchen()" class="w-full py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-amber-600/20">
+                🍳 Send KOT to Kitchen
+              </button>
+              <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800">
+                <button onclick="openSettleDirectModal()" class="py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition">
+                  💵 Direct Bill (Cash/UPI)
+                </button>
+                <button onclick="handlePostToRoom()" class="py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition">
+                  🏨 Post to Room
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- KDS View -->
+        <div id="subtab-kds" class="hidden">
+          <div class="mb-4 flex items-center justify-between">
+            <h3 class="font-bold text-white text-base">Live Kitchen Order Tickets (KDS)</h3>
+            <button onclick="loadKdsTickets()" class="px-3 py-1 bg-slate-800 text-slate-300 rounded text-xs hover:bg-slate-700">Refresh KDS</button>
+          </div>
+          <div id="kds-tickets-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Dynamically populated KDS tickets -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- TAB 7: BILLING & FOLIOS -->
+      <!-- ========================================================= -->
+      <section id="tab-folios" class="tab-content hidden">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div>
+            <h2 class="text-lg font-bold text-white">Guest Folios & India GST Billing</h2>
+            <p class="text-xs text-slate-400">Complete transaction ledger, payments, folio transfers & India GST Tax Invoices</p>
+          </div>
+          <div class="flex items-center space-x-2">
+            <select id="folio-selector" onchange="loadSelectedFolio()" class="px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs">
+            </select>
+          </div>
+        </div>
+
+        <div id="folio-detail-container" class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <!-- Dynamically populated folio card -->
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- TAB 8: CASHIER SHIFTS -->
+      <!-- ========================================================= -->
+      <section id="tab-cashier" class="tab-content hidden">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div>
+            <h2 class="text-lg font-bold text-white">Cashier Shifts & Day-End Reconciliation</h2>
+            <p class="text-xs text-slate-400">Track opening float, cash drawer collections, UPI, card, room postings and variance</p>
+          </div>
+          <div id="cashier-shift-actions" class="flex gap-2">
+          </div>
+        </div>
+
+        <div id="cashier-shift-status-card" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-6">
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+          <div class="p-4 border-b border-slate-800">
+            <h3 class="font-bold text-white text-sm">Past Shift Reconciliation History</h3>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="bg-slate-800/60 text-slate-400 uppercase tracking-wider text-[11px]">
+                <tr>
+                  <th class="px-4 py-3">Cashier</th>
+                  <th class="px-4 py-3">Opened</th>
+                  <th class="px-4 py-3">Closed</th>
+                  <th class="px-4 py-3">Opening Float</th>
+                  <th class="px-4 py-3">Cash Collected</th>
+                  <th class="px-4 py-3">UPI / Card</th>
+                  <th class="px-4 py-3">Room Postings</th>
+                  <th class="px-4 py-3">Closing Cash</th>
+                  <th class="px-4 py-3 text-right">Variance</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-shift-history" class="divide-y divide-slate-800">
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- TAB 9: INVENTORY -->
+      <!-- ========================================================= -->
+      <section id="tab-inventory" class="tab-content hidden">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div>
+            <h2 class="text-lg font-bold text-white">Stock, Ingredients & Store Management</h2>
+            <p class="text-xs text-slate-400">Monitor kitchen ingredients, beverages, and linen stock with reorder alerts</p>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="bg-slate-800/60 text-slate-400 uppercase tracking-wider text-[11px]">
+                <tr>
+                  <th class="px-4 py-3">Item Name</th>
+                  <th class="px-4 py-3">Category</th>
+                  <th class="px-4 py-3">Current Stock</th>
+                  <th class="px-4 py-3">Unit</th>
+                  <th class="px-4 py-3">Min Level</th>
+                  <th class="px-4 py-3">Cost Price</th>
+                  <th class="px-4 py-3 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-inventory" class="divide-y divide-slate-800">
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- TAB 10: NIGHT AUDIT -->
+      <!-- ========================================================= -->
+      <section id="tab-nightaudit" class="tab-content hidden">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div>
+            <h2 class="text-lg font-bold text-white">Night Audit & Business Date Advance</h2>
+            <p class="text-xs text-slate-400">Posts nightly room charges & taxes, reconciles totals, advances business date with idempotency</p>
+          </div>
+          <button onclick="executeNightAudit()" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-indigo-600/30 transition">
+            🌙 Run Night Audit Now
+          </button>
+        </div>
+
+        <div id="night-audit-status-card" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-6">
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+          <div class="p-4 border-b border-slate-800">
+            <h3 class="font-bold text-white text-sm">Past Night Audit Execution Records</h3>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="bg-slate-800/60 text-slate-400 uppercase tracking-wider text-[11px]">
+                <tr>
+                  <th class="px-4 py-3">Audited Date</th>
+                  <th class="px-4 py-3">New Business Date</th>
+                  <th class="px-4 py-3">Rooms Charged</th>
+                  <th class="px-4 py-3">Room Revenue</th>
+                  <th class="px-4 py-3">Tax Collected</th>
+                  <th class="px-4 py-3">Auditor</th>
+                  <th class="px-4 py-3 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-night-audit-history" class="divide-y divide-slate-800">
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- TAB 11: REPORTS & AUDIT -->
+      <!-- ========================================================= -->
+      <section id="tab-reports" class="tab-content hidden">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div>
+            <h2 class="text-lg font-bold text-white">Operational & Financial Reports</h2>
+            <p class="text-xs text-slate-400">Department revenue breakdown, India GST summary & system audit trail</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <h3 class="font-bold text-white text-sm mb-3">Revenue by Department</h3>
+            <div id="revenue-department-breakdown" class="space-y-3">
+            </div>
+          </div>
+
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <h3 class="font-bold text-white text-sm mb-3">India GST Collection Breakdown</h3>
+            <div id="gst-summary-breakdown" class="space-y-3">
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+          <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+            <h3 class="font-bold text-white text-sm">System Audit Trail Log</h3>
+            <span class="text-xs text-slate-500">Immutable operations log</span>
+          </div>
+          <div class="overflow-x-auto max-h-96">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="bg-slate-800/60 text-slate-400 uppercase tracking-wider text-[11px] sticky top-0">
+                <tr>
+                  <th class="px-4 py-3">Timestamp</th>
+                  <th class="px-4 py-3">User</th>
+                  <th class="px-4 py-3">Action</th>
+                  <th class="px-4 py-3">Entity</th>
+                  <th class="px-4 py-3">Details</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-audit-logs" class="divide-y divide-slate-800">
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- TAB 12: SETTINGS, BACKUP, MAIL & GOOGLE DRIVE -->
+      <!-- ========================================================= -->
+      <section id="tab-settings" class="tab-content hidden">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div>
+            <h2 class="text-lg font-bold text-white">System Settings, Backups & Integrations</h2>
+            <p class="text-xs text-slate-400">Hotel banking, UPI details, .nxp portable package export/restore, SMTP mail and Google Drive backup</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- 1. Portable Backup & Restore (.nxp file format) -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+            <div class="flex items-center space-x-2">
+              <span class="text-xl">📦</span>
+              <h3 class="font-bold text-white text-base">Portable .nxp Package Export & Restore</h3>
+            </div>
+            <p class="text-xs text-slate-400">
+              Export your complete hotel database, room catalog, folios, orders and configurations into a portable <strong>.nxp</strong> file to transfer or restore to any other computer (Linux, macOS, Windows).
+            </p>
+
+            <div class="p-4 bg-slate-800/50 border border-slate-700 rounded-xl space-y-3">
+              <div class="flex flex-wrap gap-3">
+                <a href="/api/v1/backup/export-nxp" class="btn-primary inline-flex items-center">
+                  💾 Export & Download .nxp Package
+                </a>
+              </div>
+              <p class="text-[11px] text-slate-400">Generates a verified, checksum-protected Nexuzy PMS Package file.</p>
+            </div>
+
+            <div class="p-4 bg-slate-800/50 border border-slate-700 rounded-xl space-y-3">
+              <h4 class="text-xs font-bold text-white">Restore from .nxp File</h4>
+              <p class="text-[11px] text-slate-400">Select an existing .nxp file to restore data from another computer.</p>
+              <input type="file" id="nxp-file-input" accept=".nxp,.json" class="block w-full text-xs text-slate-400 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-700 file:text-white hover:file:bg-slate-600">
+              <button onclick="handleRestoreNxpFile()" class="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition">
+                📥 Upload & Restore Database
+              </button>
+            </div>
+          </div>
+
+          <!-- 2. Google Drive Cloud Backup Application -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+            <div class="flex items-center space-x-2">
+              <span class="text-xl">☁️</span>
+              <h3 class="font-bold text-white text-base">Google Drive Cloud Backup Integration</h3>
+            </div>
+            <p class="text-xs text-slate-400">
+              Automatically synchronize your database and backups to your hotel's designated Google Drive folder for safe offsite recovery.
+            </p>
+
+            <form id="form-gdrive-settings" onsubmit="handleSaveGDriveSettings(event)" class="space-y-3">
+              <div>
+                <label class="input-label">Google Drive Folder ID *</label>
+                <input type="text" id="gdrive-folder-id" class="input-field" placeholder="e.g. 1A2b3C4d5E6f7G8h9I0j">
+              </div>
+              <div class="flex items-center space-x-2">
+                <input type="checkbox" id="gdrive-enabled" class="rounded bg-slate-800 border-slate-700">
+                <label for="gdrive-enabled" class="text-xs text-slate-300">Enable automated Google Drive backup sync</label>
+              </div>
+
+              <div class="flex gap-2 pt-2">
+                <button type="submit" class="btn-secondary text-xs">Save Drive Settings</button>
+                <button type="button" onclick="handleSyncGDriveNow()" class="btn-primary text-xs">
+                  ☁️ Sync to Google Drive Now
+                </button>
+              </div>
+              <div id="gdrive-status-badge" class="text-[11px] text-slate-400 pt-1">Status: Checking...</div>
+            </form>
+          </div>
+
+          <!-- 3. SMTP Mail Server Configuration -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+            <div class="flex items-center space-x-2">
+              <span class="text-xl">✉️</span>
+              <h3 class="font-bold text-white text-base">SMTP Mail System Setup</h3>
+            </div>
+            <p class="text-xs text-slate-400">
+              Configure your hotel's email provider (Gmail, Outlook, Amazon SES, cPanel) to send booking confirmations, receipts, and invoices.
+            </p>
+
+            <form id="form-smtp-settings" onsubmit="handleSaveSmtpSettings(event)" class="space-y-3">
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="input-label">SMTP Host *</label>
+                  <input type="text" id="smtp-host" class="input-field" placeholder="smtp.gmail.com">
+                </div>
+                <div>
+                  <label class="input-label">SMTP Port *</label>
+                  <input type="number" id="smtp-port" class="input-field" value="587">
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="input-label">Username / Email *</label>
+                  <input type="text" id="smtp-user" class="input-field" placeholder="notifications@hotel.com">
+                </div>
+                <div>
+                  <label class="input-label">Password / App Pass *</label>
+                  <input type="password" id="smtp-pass" class="input-field" placeholder="••••••••">
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-3 items-center">
+                <div>
+                  <label class="input-label">From Email Address</label>
+                  <input type="text" id="smtp-from" class="input-field" placeholder="noreply@hotel.com">
+                </div>
+                <div class="flex items-center pt-4">
+                  <input type="checkbox" id="smtp-secure" class="rounded bg-slate-800 border-slate-700 mr-2">
+                  <label for="smtp-secure" class="text-xs text-slate-300">Use SSL/TLS (Port 465)</label>
+                </div>
+              </div>
+
+              <div class="flex gap-2 pt-2">
+                <button type="submit" class="btn-secondary text-xs">Save Mail Setup</button>
+                <button type="button" onclick="handleSendTestEmail()" class="btn-primary text-xs">Send Test Email</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- 4. Hotel Profile, Bank & UPI Info -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+            <div class="flex items-center space-x-2">
+              <span class="text-xl">🏨</span>
+              <h3 class="font-bold text-white text-base">Hotel Profile, Banking & Taxes</h3>
+            </div>
+            <p class="text-xs text-slate-400">
+              Update legal business details, GSTIN, Bank account, and UPI details printed on guest bills.
+            </p>
+
+            <form id="form-hotel-profile" onsubmit="handleSaveHotelProfile(event)" class="space-y-3">
+              <div>
+                <label class="input-label">Hotel Name</label>
+                <input type="text" id="edit-hotel-name" class="input-field">
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="input-label">Phone</label>
+                  <input type="text" id="edit-hotel-phone" class="input-field">
+                </div>
+                <div>
+                  <label class="input-label">GSTIN Number</label>
+                  <input type="text" id="edit-hotel-gstin" class="input-field">
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="input-label">Bank Name</label>
+                  <input type="text" id="edit-bank-name" class="input-field">
+                </div>
+                <div>
+                  <label class="input-label">A/C Number</label>
+                  <input type="text" id="edit-bank-acc" class="input-field">
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="input-label">Bank IFSC</label>
+                  <input type="text" id="edit-bank-ifsc" class="input-field">
+                </div>
+                <div>
+                  <label class="input-label">UPI ID (For Bills)</label>
+                  <input type="text" id="edit-upi-id" class="input-field">
+                </div>
+              </div>
+              <button type="submit" class="btn-secondary text-xs mt-2">Save Profile Updates</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="bg-slate-900 border-t border-slate-800 text-slate-500 text-xs py-4 px-4 lg:px-8 mt-auto text-center flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center space-x-2">
+        <img src="/logo.png" alt="Nexuzy PMS" class="h-5 w-auto object-contain">
+        <span><strong class="text-slate-400">Nexuzy PMS</strong> — Open-source Property, Restaurant & Operations Management.</span>
+      </div>
+      <div>
+        Lead Developer: David (<a href="mailto:david@nexuzy.in" class="text-indigo-400 hover:underline">david@nexuzy.in</a>) &middot; <a href="https://nexuzy.in" target="_blank" class="text-indigo-400 hover:underline">nexuzy.in</a>
+      </div>
+    </footer>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- MODALS -->
+  <!-- ========================================================= -->
+
+  <!-- MODAL: WALK-IN CHECK-IN -->
+  <div id="modal-walkin" class="modal-backdrop hidden">
+    <div class="modal-box max-w-lg">
+      <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-800">
+        <h3 class="font-bold text-white text-base">⚡ Instant Walk-In Check-In</h3>
+        <button onclick="closeModal('modal-walkin')" class="text-slate-500 hover:text-white">&times;</button>
+      </div>
+      <form id="form-walkin" onsubmit="handleWalkInSubmit(event)" class="space-y-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="input-label">First Name *</label>
+            <input type="text" id="walkin-first-name" required class="input-field" placeholder="John">
+          </div>
+          <div>
+            <label class="input-label">Last Name</label>
+            <input type="text" id="walkin-last-name" class="input-field" placeholder="Doe">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="input-label">Phone Number *</label>
+            <input type="text" id="walkin-phone" required class="input-field" placeholder="+91 98765 43210">
+          </div>
+          <div>
+            <label class="input-label">Email</label>
+            <input type="email" id="walkin-email" class="input-field" placeholder="john@example.com">
+          </div>
+        </div>
+        <div>
+          <label class="input-label">Assign Room *</label>
+          <select id="walkin-room-select" required onchange="onWalkInRoomChange()" class="input-field">
+          </select>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="input-label">Nights</label>
+            <input type="number" id="walkin-nights" value="1" min="1" class="input-field">
+          </div>
+          <div>
+            <label class="input-label">Nightly Rate (₹) *</label>
+            <input type="number" id="walkin-rate" required class="input-field">
+          </div>
+          <div>
+            <label class="input-label">Initial Deposit (₹)</label>
+            <input type="number" id="walkin-deposit" value="0" class="input-field">
+          </div>
+        </div>
+        <div class="pt-3 border-t border-slate-800 flex justify-end space-x-2">
+          <button type="button" onclick="closeModal('modal-walkin')" class="btn-secondary">Cancel</button>
+          <button type="submit" class="btn-primary">Confirm Check-In</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: NEW RESERVATION -->
+  <div id="modal-reservation" class="modal-backdrop hidden">
+    <div class="modal-box max-w-lg">
+      <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-800">
+        <h3 class="font-bold text-white text-base">➕ Create Individual Reservation</h3>
+        <button onclick="closeModal('modal-reservation')" class="text-slate-500 hover:text-white">&times;</button>
+      </div>
+      <form id="form-reservation" onsubmit="handleReservationSubmit(event)" class="space-y-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="input-label">Guest First Name *</label>
+            <input type="text" id="res-first-name" required class="input-field">
+          </div>
+          <div>
+            <label class="input-label">Guest Phone *</label>
+            <input type="text" id="res-phone" required class="input-field">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="input-label">Check-In Date *</label>
+            <input type="date" id="res-check-in" required class="input-field">
+          </div>
+          <div>
+            <label class="input-label">Check-Out Date *</label>
+            <input type="date" id="res-check-out" required class="input-field">
+          </div>
+        </div>
+        <div>
+          <label class="input-label">Room Type *</label>
+          <select id="res-room-type" required onchange="onResRoomTypeChange()" class="input-field">
+          </select>
+        </div>
+        <div>
+          <label class="input-label">Assign Specific Room (Optional)</label>
+          <select id="res-room-select" class="input-field">
+          </select>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="input-label">Rate / Night (₹) *</label>
+            <input type="number" id="res-rate" required class="input-field">
+          </div>
+          <div>
+            <label class="input-label">Advance Deposit (₹)</label>
+            <input type="number" id="res-deposit" value="0" class="input-field">
+          </div>
+        </div>
+        <div class="pt-3 border-t border-slate-800 flex justify-end space-x-2">
+          <button type="button" onclick="closeModal('modal-reservation')" class="btn-secondary">Cancel</button>
+          <button type="submit" class="btn-primary">Save Reservation</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: CREATE GROUP BOOKING -->
+  <div id="modal-group" class="modal-backdrop hidden">
+    <div class="modal-box max-w-xl">
+      <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-800">
+        <div>
+          <h3 class="font-bold text-white text-base">👥 Create Master Group Reservation</h3>
+          <p class="text-xs text-slate-400">Supports staggered arrival & departure dates per room</p>
+        </div>
+        <button onclick="closeModal('modal-group')" class="text-slate-500 hover:text-white">&times;</button>
+      </div>
+      <form id="form-group" onsubmit="handleGroupSubmit(event)" class="space-y-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="input-label">Group / Event Name *</label>
+            <input type="text" id="grp-name" required class="input-field" placeholder="e.g. Acme Corp Offsite">
+          </div>
+          <div>
+            <label class="input-label">Booking Source</label>
+            <select id="grp-source" class="input-field">
+              <option value="corporate">Corporate</option>
+              <option value="direct">Direct</option>
+              <option value="wedding">Wedding / Family</option>
+              <option value="agent">Travel Agent</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="input-label">Main Contact Person *</label>
+            <input type="text" id="grp-contact-name" required class="input-field">
+          </div>
+          <div>
+            <label class="input-label">Contact Phone *</label>
+            <input type="text" id="grp-contact-phone" required class="input-field">
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="input-label">Planning Start *</label>
+            <input type="date" id="grp-start-date" required class="input-field">
+          </div>
+          <div>
+            <label class="input-label">Planning End *</label>
+            <input type="date" id="grp-end-date" required class="input-field">
+          </div>
+          <div>
+            <label class="input-label">Group Advance (₹)</label>
+            <input type="number" id="grp-deposit" value="0" class="input-field">
+          </div>
+        </div>
+
+        <div class="pt-2 border-t border-slate-800">
+          <div class="flex justify-between items-center mb-2">
+            <span class="text-xs font-bold text-slate-300">Room Allocations in Group</span>
+            <button type="button" onclick="addGroupRoomRow()" class="text-xs text-indigo-400 hover:underline">+ Add Room Slot</button>
+          </div>
+          <div id="grp-room-slots-container" class="space-y-2 max-h-48 overflow-y-auto">
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-800 flex justify-end space-x-2">
+          <button type="button" onclick="closeModal('modal-group')" class="btn-secondary">Cancel</button>
+          <button type="submit" class="btn-primary">Create Group Reservation</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: PRINTABLE TAX INVOICE WITH LOGO, BANK & UPI DETAILS -->
+  <div id="modal-invoice" class="modal-backdrop hidden">
+    <div class="modal-box max-w-2xl bg-white text-slate-900 print:p-0 print:border-none print:shadow-none">
+      <div class="flex justify-between items-center pb-3 border-b border-slate-200 print:hidden">
+        <h3 class="font-bold text-slate-800 text-sm">Tax Invoice Preview (India GST Compliant)</h3>
+        <div class="flex gap-2">
+          <button onclick="window.print()" class="px-3 py-1 bg-indigo-600 text-white rounded text-xs font-semibold">🖨️ Print Invoice / PDF</button>
+          <button onclick="closeModal('modal-invoice')" class="px-2 py-1 bg-slate-200 text-slate-700 rounded text-xs">&times;</button>
+        </div>
+      </div>
+      <div id="invoice-printable-content" class="p-6">
+        <!-- Dynamically populated with Logo, Bank, UPI and Items -->
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD FOLIO CHARGE -->
+  <div id="modal-add-charge" class="modal-backdrop hidden">
+    <div class="modal-box max-w-md">
+      <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-800">
+        <h3 class="font-bold text-white text-base">➕ Post Charge to Folio</h3>
+        <button onclick="closeModal('modal-add-charge')" class="text-slate-500 hover:text-white">&times;</button>
+      </div>
+      <form id="form-add-charge" onsubmit="handleAddChargeSubmit(event)" class="space-y-3">
+        <div>
+          <label class="input-label">Department / Category *</label>
+          <select id="charge-dept" class="input-field">
+            <option value="room_rent">Room Rent</option>
+            <option value="restaurant">Restaurant Dining</option>
+            <option value="room_service">Room Service</option>
+            <option value="laundry">Laundry Service</option>
+            <option value="extra_bed">Extra Bed / Guest</option>
+            <option value="other">Miscellaneous Service</option>
+          </select>
+        </div>
+        <div>
+          <label class="input-label">Description *</label>
+          <input type="text" id="charge-desc" required class="input-field" placeholder="e.g. Express Laundry">
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="input-label">Quantity</label>
+            <input type="number" id="charge-qty" value="1" min="1" class="input-field">
+          </div>
+          <div>
+            <label class="input-label">Unit Price (₹) *</label>
+            <input type="number" id="charge-price" required class="input-field">
+          </div>
+          <div>
+            <label class="input-label">GST Rate %</label>
+            <select id="charge-tax-rate" class="input-field">
+              <option value="12">12% (Standard)</option>
+              <option value="5">5% (F&B)</option>
+              <option value="18">18% (Luxury)</option>
+              <option value="0">0% (Exempt)</option>
+            </select>
+          </div>
+        </div>
+        <div class="pt-3 border-t border-slate-800 flex justify-end space-x-2">
+          <button type="button" onclick="closeModal('modal-add-charge')" class="btn-secondary">Cancel</button>
+          <button type="submit" class="btn-primary">Post Charge</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD FOLIO PAYMENT -->
+  <div id="modal-add-payment" class="modal-backdrop hidden">
+    <div class="modal-box max-w-md">
+      <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-800">
+        <h3 class="font-bold text-white text-base">💵 Receive Payment on Folio</h3>
+        <button onclick="closeModal('modal-add-payment')" class="text-slate-500 hover:text-white">&times;</button>
+      </div>
+      <form id="form-add-payment" onsubmit="handleAddPaymentSubmit(event)" class="space-y-3">
+        <div>
+          <label class="input-label">Amount (₹) *</label>
+          <input type="number" id="pay-amount" required class="input-field" placeholder="Enter amount">
+        </div>
+        <div>
+          <label class="input-label">Payment Method *</label>
+          <select id="pay-method" class="input-field">
+            <option value="upi">UPI (GPay / PhonePe / Paytm)</option>
+            <option value="cash">Cash</option>
+            <option value="card">Credit / Debit Card</option>
+            <option value="bank_transfer">Bank Transfer / NEFT</option>
+          </select>
+        </div>
+        <div>
+          <label class="input-label">Transaction Reference</label>
+          <input type="text" id="pay-ref" class="input-field" placeholder="UPI Ref / Card Last 4">
+        </div>
+        <div>
+          <label class="input-label">Notes</label>
+          <input type="text" id="pay-notes" class="input-field" placeholder="Settlement payment at front desk">
+        </div>
+        <div class="pt-3 border-t border-slate-800 flex justify-end space-x-2">
+          <button type="button" onclick="closeModal('modal-add-payment')" class="btn-secondary">Cancel</button>
+          <button type="submit" class="btn-primary">Record Payment</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- App Logic Scripts -->
+  <script src="app.js"></script>
+</body>
+</html>
