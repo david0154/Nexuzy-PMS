@@ -130,8 +130,23 @@ router.post('/:id/payments', authenticateToken, async (req, res) => {
     if (!payAmt || payAmt <= 0) {
       return res.status(400).json({ success: false, error: 'Valid payment amount required' });
     }
-    if (!payment_method) {
-      return res.status(400).json({ success: false, error: 'Payment method is required (cash, card, upi, bank_transfer)' });
+    const allowedMethods = ['cash', 'card', 'upi', 'bank_transfer'];
+    if (!allowedMethods.includes(String(payment_method || '').toLowerCase())) {
+      return res.status(400).json({ success: false, error: 'Payment method must be cash, card, upi or bank_transfer' });
+    }
+    if (!Number.isFinite(payAmt) || payAmt <= 0) {
+      return res.status(400).json({ success: false, error: 'Valid payment amount required' });
+    }
+
+    const targetFolio = await db.get('SELECT id, property_id, status, balance FROM folios WHERE id = ?', [id]);
+    if (!targetFolio || targetFolio.property_id !== req.user.property_id) {
+      return res.status(404).json({ success: false, error: 'Folio not found' });
+    }
+    if (targetFolio.status !== 'open') {
+      return res.status(409).json({ success: false, error: 'Cannot receive payment on a settled or closed folio' });
+    }
+    if (payAmt > Number(targetFolio.balance) + 0.005) {
+      return res.status(400).json({ success: false, error: 'Payment exceeds the outstanding folio balance' });
     }
 
     const payId = uuidv4();
@@ -143,7 +158,7 @@ router.post('/:id/payments', authenticateToken, async (req, res) => {
         `INSERT INTO payments 
          (id, receipt_number, property_id, folio_id, amount, payment_method, payment_type, cashier_id, transaction_ref, notes)
          VALUES (?, ?, ?, ?, ?, ?, 'settlement', ?, ?, ?)`,
-        [payId, receiptNo, req.user.property_id, id, payAmt, payment_method, req.user.id, transaction_ref || null, notes || null]
+        [payId, receiptNo, req.user.property_id, id, payAmt, String(payment_method).toLowerCase(), req.user.id, transaction_ref || null, notes || null]
       );
 
       // 2. Update folio balance
