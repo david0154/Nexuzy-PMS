@@ -89,6 +89,25 @@ CREATE TABLE IF NOT EXISTS rooms (
     FOREIGN KEY (room_type_id) REFERENCES room_types(id)
 );
 
+-- Room status history (append-only operational history)
+CREATE TABLE IF NOT EXISTS room_status_history (
+    id TEXT PRIMARY KEY,
+    property_id TEXT NOT NULL,
+    room_id TEXT NOT NULL,
+    old_operational_status TEXT,
+    new_operational_status TEXT,
+    old_housekeeping_status TEXT,
+    new_housekeeping_status TEXT,
+    old_maintenance_status TEXT,
+    new_maintenance_status TEXT,
+    reason TEXT,
+    changed_by TEXT,
+    changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (property_id) REFERENCES properties(id),
+    FOREIGN KEY (room_id) REFERENCES rooms(id),
+    FOREIGN KEY (changed_by) REFERENCES users(id)
+);
+
 -- Guests
 CREATE TABLE IF NOT EXISTS guests (
     id TEXT PRIMARY KEY,
