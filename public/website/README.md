@@ -6,8 +6,8 @@ A static, dependency-free website that is served by the existing Nexuzy PMS Expr
 
 With the PMS running:
 
-- **Homepage:** `http://localhost:5000/website/`
-- **Illustrated field guide:** `http://localhost:5000/website/docs.html`
+- **Homepage:** `https://pms.nexuzy.in`
+- **Illustrated field guide:** `http://pms.nexuzy.in/docs.html`
 
 The homepage and guide are also ordinary static files, so they can be opened from a local file server or deployed to any static host. Relative asset paths are used throughout.
 
