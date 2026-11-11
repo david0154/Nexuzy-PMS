@@ -29,7 +29,12 @@ CREATE TABLE IF NOT EXISTS properties (
     upi_name TEXT,
     default_room_tax_rate REAL DEFAULT 12.0,
     default_restaurant_tax_rate REAL DEFAULT 5.0,
+    require_advance_for_confirmation INTEGER DEFAULT 0,
+    advance_percentage REAL DEFAULT 30.0,
+    advance_due_days INTEGER DEFAULT 3,
+    invoice_prefix TEXT DEFAULT 'INV',
     logo_url TEXT DEFAULT '/logo.png',
+    phone_country_code TEXT DEFAULT '91',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -147,9 +152,23 @@ CREATE TABLE IF NOT EXISTS reservations (
     rate_per_night REAL NOT NULL,
     deposit_required REAL DEFAULT 0,
     deposit_paid REAL DEFAULT 0,
-    status TEXT DEFAULT 'confirmed', -- 'confirmed', 'checked_in', 'checked_out', 'cancelled', 'no_show'
+    status TEXT DEFAULT 'confirmed', -- enquiry, tentative, awaiting_advance, confirmed, partially_paid, fully_prepaid, checked_in, checked_out, cancelled, no_show
     booking_source TEXT DEFAULT 'direct',
     special_requests TEXT,
+    confirmation_required INTEGER DEFAULT 0,
+    total_amount REAL DEFAULT 0,
+    advance_required REAL DEFAULT 0,
+    advance_due_date TEXT,
+    payment_status TEXT DEFAULT 'unpaid', -- unpaid, partially_paid, fully_prepaid, refunded
+    rate_plan TEXT DEFAULT 'standard',
+    cancellation_reason TEXT,
+    cancelled_at DATETIME,
+    cancelled_by TEXT,
+    refunded_amount REAL DEFAULT 0,
+    confirmed_at DATETIME,
+    confirmed_by TEXT,
+    updated_at DATETIME,
+    version INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (property_id) REFERENCES properties(id),
     FOREIGN KEY (guest_id) REFERENCES guests(id),
@@ -195,6 +214,8 @@ CREATE TABLE IF NOT EXISTS stays (
     nightly_rate REAL NOT NULL,
     adults INTEGER DEFAULT 1,
     children INTEGER DEFAULT 0,
+    checked_in_by TEXT,
+    checked_out_by TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (property_id) REFERENCES properties(id),
     FOREIGN KEY (reservation_id) REFERENCES reservations(id),
@@ -215,6 +236,9 @@ CREATE TABLE IF NOT EXISTS folios (
     total_charges REAL DEFAULT 0,
     total_payments REAL DEFAULT 0,
     balance REAL DEFAULT 0,
+    closed_at DATETIME,
+    closed_by TEXT,
+    invoice_id TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (property_id) REFERENCES properties(id),
     FOREIGN KEY (stay_id) REFERENCES stays(id),
@@ -238,6 +262,7 @@ CREATE TABLE IF NOT EXISTS folio_entries (
     created_by TEXT,
     is_transferred INTEGER DEFAULT 0,
     transferred_to_folio_id TEXT,
+    idempotency_key TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (folio_id) REFERENCES folios(id)
 );
@@ -257,6 +282,13 @@ CREATE TABLE IF NOT EXISTS payments (
     shift_id TEXT,
     transaction_ref TEXT,
     notes TEXT,
+    restaurant_order_id TEXT,
+    restaurant_booking_id TEXT,
+    status TEXT DEFAULT 'posted', -- 'posted', 'reversed'
+    idempotency_key TEXT,
+    reversed_at DATETIME,
+    reversal_reason TEXT,
+    device TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (property_id) REFERENCES properties(id),
     FOREIGN KEY (folio_id) REFERENCES folios(id),
@@ -281,6 +313,14 @@ CREATE TABLE IF NOT EXISTS invoices (
     balance_due REAL DEFAULT 0,
     invoice_type TEXT DEFAULT 'tax_invoice', -- 'tax_invoice', 'proforma', 'advance_receipt', 'restaurant_bill'
     status TEXT DEFAULT 'issued', -- 'issued', 'cancelled', 'paid'
+    document_type TEXT DEFAULT 'tax_invoice',
+    place_of_supply TEXT,
+    tax_breakdown TEXT,
+    snapshot_id TEXT,
+    confirmed_by TEXT,
+    confirmed_at DATETIME,
+    is_locked INTEGER DEFAULT 0,
+    notes TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (property_id) REFERENCES properties(id),
     FOREIGN KEY (folio_id) REFERENCES folios(id),
@@ -354,6 +394,14 @@ CREATE TABLE IF NOT EXISTS restaurant_orders (
     settlement_method TEXT,            -- 'cash', 'card', 'upi', 'room_folio'
     settled_at DATETIME,
     waiter_name TEXT,
+    outlet_id TEXT,
+    bill_number TEXT,
+    payment_status TEXT DEFAULT 'unpaid', -- unpaid, paid, posted_to_room, refunded
+    posted_folio_id TEXT,
+    idempotency_key TEXT,
+    guest_name TEXT,
+    discount_amount REAL DEFAULT 0,
+    updated_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (property_id) REFERENCES properties(id),
     FOREIGN KEY (table_id) REFERENCES restaurant_tables(id),
@@ -376,6 +424,8 @@ CREATE TABLE IF NOT EXISTS order_items (
     status TEXT DEFAULT 'new', -- 'new', 'preparing', 'ready', 'served', 'cancelled'
     kot_id TEXT,
     notes TEXT,
+    addons_json TEXT,
+    kot_round INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (order_id) REFERENCES restaurant_orders(id) ON DELETE CASCADE,
     FOREIGN KEY (menu_item_id) REFERENCES menu_items(id)
@@ -389,9 +439,13 @@ CREATE TABLE IF NOT EXISTS kitchen_tickets (
     table_id TEXT,
     room_id TEXT,
     station TEXT DEFAULT 'kitchen',
-    status TEXT DEFAULT 'new', -- 'new', 'preparing', 'ready', 'served'
+    status TEXT DEFAULT 'new', -- 'new', 'preparing', 'ready', 'served', 'cancelled'
     round_number INTEGER DEFAULT 1,
     notes TEXT,
+    print_count INTEGER DEFAULT 0,
+    printed_at DATETIME,
+    cancel_reason TEXT,
+    created_by TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (order_id) REFERENCES restaurant_orders(id) ON DELETE CASCADE
 );
@@ -502,6 +556,159 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     entity_type TEXT NOT NULL,
     entity_id TEXT,
     details TEXT,
+    before_value TEXT,
+    after_value TEXT,
+    device TEXT,
     ip_address TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Document number series (quotation, confirmation, receipts, invoices, credit notes)
+CREATE TABLE IF NOT EXISTS document_sequences (
+    id TEXT PRIMARY KEY,
+    property_id TEXT NOT NULL,
+    document_type TEXT NOT NULL,
+    prefix TEXT NOT NULL,
+    next_number INTEGER DEFAULT 1,
+    padding INTEGER DEFAULT 5,
+    UNIQUE(property_id, document_type),
+    FOREIGN KEY (property_id) REFERENCES properties(id)
+);
+
+-- Issued booking documents (quotation / confirmation / receipts / credit notes)
+CREATE TABLE IF NOT EXISTS booking_documents (
+    id TEXT PRIMARY KEY,
+    property_id TEXT NOT NULL,
+    reservation_id TEXT,
+    group_id TEXT,
+    folio_id TEXT,
+    document_type TEXT NOT NULL,
+    document_number TEXT NOT NULL UNIQUE,
+    version INTEGER DEFAULT 1,
+    status TEXT DEFAULT 'issued', -- issued, superseded, sent, cancelled
+    delivery_status TEXT DEFAULT 'not_sent',
+    delivery_note TEXT,
+    payload TEXT,
+    total_amount REAL DEFAULT 0,
+    balance_amount REAL DEFAULT 0,
+    issued_by TEXT,
+    sent_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (property_id) REFERENCES properties(id),
+    FOREIGN KEY (reservation_id) REFERENCES reservations(id),
+    FOREIGN KEY (folio_id) REFERENCES folios(id)
+);
+
+-- Immutable checkout bill preview snapshots
+CREATE TABLE IF NOT EXISTS checkout_snapshots (
+    id TEXT PRIMARY KEY,
+    property_id TEXT NOT NULL,
+    stay_id TEXT NOT NULL,
+    folio_id TEXT NOT NULL,
+    snapshot_json TEXT NOT NULL,
+    total_charges REAL DEFAULT 0,
+    total_tax REAL DEFAULT 0,
+    total_payments REAL DEFAULT 0,
+    balance REAL DEFAULT 0,
+    refund_due REAL DEFAULT 0,
+    status TEXT DEFAULT 'preview', -- preview, confirmed, invoice_issued, cancelled
+    confirmed_by TEXT,
+    confirmed_at DATETIME,
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (property_id) REFERENCES properties(id),
+    FOREIGN KEY (stay_id) REFERENCES stays(id),
+    FOREIGN KEY (folio_id) REFERENCES folios(id)
+);
+
+-- Refund ledger. Original payment rows are never edited.
+CREATE TABLE IF NOT EXISTS payment_refunds (
+    id TEXT PRIMARY KEY,
+    receipt_number TEXT NOT NULL UNIQUE,
+    property_id TEXT NOT NULL,
+    payment_id TEXT,
+    reservation_id TEXT,
+    folio_id TEXT,
+    group_id TEXT,
+    amount REAL NOT NULL,
+    restaurant_booking_id TEXT,
+    refund_method TEXT NOT NULL DEFAULT 'cash',
+    reason TEXT NOT NULL,
+    transaction_ref TEXT,
+    approved_by TEXT,
+    created_by TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (property_id) REFERENCES properties(id),
+    FOREIGN KEY (payment_id) REFERENCES payments(id)
+);
+
+-- Device sessions for LAN / multi-device sign-in and revocation
+CREATE TABLE IF NOT EXISTS lan_sessions (
+    id TEXT PRIMARY KEY,
+    property_id TEXT,
+    user_id TEXT,
+    username TEXT,
+    device_label TEXT,
+    ip_address TEXT,
+    user_agent TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at DATETIME,
+    revoked_at DATETIME,
+    revoked_by TEXT,
+    is_active INTEGER DEFAULT 1,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Hotel Operating Expenses (cash-out ledger, separate from guest folios)
+CREATE TABLE IF NOT EXISTS hotel_expenses (
+    id TEXT PRIMARY KEY,
+    property_id TEXT NOT NULL,
+    expense_date TEXT NOT NULL,
+    category TEXT NOT NULL,
+    vendor TEXT,
+    description TEXT NOT NULL,
+    amount REAL NOT NULL,
+    tax_amount REAL DEFAULT 0,
+    payment_mode TEXT DEFAULT 'cash', -- 'cash', 'upi', 'card', 'bank_transfer', 'netbanking', 'credit'
+    reference TEXT,
+    paid_by TEXT,
+    notes TEXT,
+    status TEXT DEFAULT 'posted', -- 'posted', 'void'
+    void_reason TEXT,
+    created_by TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (property_id) REFERENCES properties(id)
+);
+
+-- Restaurant Table Advance Bookings
+CREATE TABLE IF NOT EXISTS restaurant_bookings (
+    id TEXT PRIMARY KEY,
+    property_id TEXT NOT NULL,
+    booking_number TEXT NOT NULL UNIQUE,
+    guest_name TEXT NOT NULL,
+    guest_phone TEXT NOT NULL,
+    guest_email TEXT,
+    booking_date TEXT NOT NULL,
+    booking_time TEXT NOT NULL,
+    guest_count INTEGER DEFAULT 2,
+    table_id TEXT,
+    advance_amount REAL DEFAULT 0,
+    payment_mode TEXT,
+    transaction_ref TEXT,
+    idempotency_key TEXT,
+    status TEXT DEFAULT 'pending', -- 'pending', 'confirmed', 'seated', 'completed', 'cancelled', 'no_show'
+    notes TEXT,
+    order_id TEXT,
+    payment_id TEXT,
+    confirmed_at DATETIME,
+    cancelled_at DATETIME,
+    cancel_reason TEXT,
+    created_by TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (property_id) REFERENCES properties(id),
+    FOREIGN KEY (table_id) REFERENCES restaurant_tables(id)
+);
+
+-- Indexes that depend on columns added by migrations are created by
+-- server/config/migrations.js after the columns exist.
+

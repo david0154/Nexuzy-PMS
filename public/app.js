@@ -35,7 +35,10 @@ async function api(path, options = {}) {
     }
     const data = await res.json();
     if (!res.ok) {
-      throw new Error(data.error || 'Request failed');
+      const error = new Error(data.error || 'Request failed');
+      error.status = res.status;
+      error.data = data;
+      throw error;
     }
     return data;
   } catch (err) {
@@ -79,6 +82,7 @@ async function initApp() {
     hideLoginModal();
     hideSetupWizard();
     switchTab('dashboard');
+    if (typeof maybeAutoCheckUpdates === 'function') maybeAutoCheckUpdates();
   } catch (err) {
     showLoginModal();
   }
@@ -100,6 +104,75 @@ function showLoginModal() {
 
 function hideLoginModal() {
   document.getElementById('login-modal').classList.add('hidden');
+}
+
+const LOGO_MAX_BYTES = 1.5 * 1024 * 1024;
+const LOGO_MAX_DIMENSION = 1024;
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Could not read the selected image.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function dataUrlBytes(dataUrl) {
+  const base64 = String(dataUrl).split(',')[1] || '';
+  return Math.floor((base64.length * 3) / 4);
+}
+
+// Resize and re-encode logos before upload. Phone photos are often larger than
+// the server limit, and WebP cannot be embedded in PDF bills. 1024 px is ample
+// for a header mark or printed invoice.
+async function readImageFileAsDataUrl(file) {
+  if (!file) throw new Error('Choose an image file.');
+  if (!/^image\/(png|jpe?g|webp)$/i.test(file.type || '')) {
+    throw new Error('Upload a PNG, JPG or WebP image file.');
+  }
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, LOGO_MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    if (typeof bitmap.close === 'function') bitmap.close();
+
+    let dataUrl = canvas.toDataURL('image/png');
+    if (dataUrlBytes(dataUrl) > LOGO_MAX_BYTES) {
+      // JPEG keeps photographic logos under the limit; paint white first so
+      // transparent areas do not turn black.
+      ctx.globalCompositeOperation = 'destination-over';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+      dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    }
+    if (dataUrlBytes(dataUrl) > LOGO_MAX_BYTES) {
+      throw new Error('Logo is still larger than 1.5 MB after resizing. Try a simpler image.');
+    }
+    return dataUrl;
+  } catch (err) {
+    if (err && /larger than 1\.5 MB/.test(err.message || '')) throw err;
+    const raw = await readFileAsDataUrl(file);
+    if (dataUrlBytes(raw) > LOGO_MAX_BYTES) {
+      throw new Error('Logo must be 1.5 MB or smaller. Resize the image and try again.');
+    }
+    return raw;
+  }
+}
+
+function previewSetupLogo(input) {
+  const preview = document.getElementById('setup-logo-preview');
+  if (!preview || !input.files || !input.files.length) return;
+  readImageFileAsDataUrl(input.files[0])
+    .then(dataUrl => { preview.src = dataUrl; })
+    .catch(err => { input.value = ''; alert(err.message); });
 }
 
 // Handle First Time Hotel Setup
@@ -133,6 +206,17 @@ async function handleFirstTimeSetup(e) {
     admin_password: document.getElementById('setup-admin-password').value
   };
 
+  const logoInput = document.getElementById('setup-logo-input');
+  if (logoInput && logoInput.files.length) {
+    try {
+      payload.logo_data_url = await readImageFileAsDataUrl(logoInput.files[0]);
+    } catch (readErr) {
+      errorEl.textContent = readErr.message;
+      errorEl.classList.remove('hidden');
+      return;
+    }
+  }
+
   try {
     const res = await api('/setup/initialize', {
       method: 'POST',
@@ -147,7 +231,18 @@ async function handleFirstTimeSetup(e) {
 
     hideSetupWizard();
     alert('Hotel setup complete! Welcome to Nexuzy PMS.');
+
+    if (confirm('Create a desktop shortcut for Nexuzy PMS on this computer?')) {
+      try {
+        const shortcut = await api('/setup/shortcut', { method: 'POST', body: '{}' });
+        alert(`Desktop shortcut created:\n${shortcut.path}`);
+      } catch (shortcutErr) {
+        alert(`${shortcutErr.message}\nYou can create it later from Settings.`);
+      }
+    }
+
     switchTab('dashboard');
+    if (typeof maybeAutoCheckUpdates === 'function') maybeAutoCheckUpdates();
   } catch (err) {
     errorEl.textContent = err.message;
     errorEl.classList.remove('hidden');
@@ -181,6 +276,7 @@ document.getElementById('login-form')?.addEventListener('submit', async (e) => {
 
     hideLoginModal();
     switchTab('dashboard');
+    if (typeof maybeAutoCheckUpdates === 'function') maybeAutoCheckUpdates();
   } catch (err) {
     errorEl.textContent = err.message;
     errorEl.classList.remove('hidden');
@@ -188,6 +284,14 @@ document.getElementById('login-form')?.addEventListener('submit', async (e) => {
 });
 
 function handleLogout() {
+  const token = localStorage.getItem('nexuzy_token');
+  if (token) {
+    fetch(`${API_BASE}/auth/logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      keepalive: true
+    }).catch(() => {});
+  }
   localStorage.removeItem('nexuzy_token');
   currentUser = null;
   showLoginModal();
@@ -205,6 +309,10 @@ function updatePropertyUI() {
   document.getElementById('header-prop-code').textContent = currentProperty.code;
   document.getElementById('header-gstin').textContent = currentProperty.gstin || 'Not Configured';
   document.getElementById('header-business-date').textContent = currentProperty.business_date;
+  const logo = document.getElementById('header-logo');
+  if (logo && currentProperty.logo_url) logo.src = currentProperty.logo_url;
+  const icon = document.querySelector('link[rel="icon"]');
+  if (icon && currentProperty.logo_url) icon.href = currentProperty.logo_url;
 }
 
 // =========================================================
@@ -234,6 +342,7 @@ function switchTab(tabId) {
   else if (tabId === 'restaurant') loadRestaurantPosData();
   else if (tabId === 'folios') loadFoliosData();
   else if (tabId === 'cashier') loadCashierShiftData();
+  else if (tabId === 'expenses') loadExpensesData();
   else if (tabId === 'inventory') loadInventoryData();
   else if (tabId === 'nightaudit') loadNightAuditData();
   else if (tabId === 'reports') loadReportsData();
@@ -260,6 +369,10 @@ async function loadDashboardData() {
     document.getElementById('stat-open-kots').textContent = rm.open_kots;
     document.getElementById('stat-active-tables').textContent = rm.occupied_tables;
     document.getElementById('stat-today-collections').textContent = `₹${(fm.total_collections_today || 0).toLocaleString()}`;
+    document.getElementById('stat-expenses-today').textContent = `₹${(fm.expenses_today || 0).toLocaleString()}`;
+    const netEl = document.getElementById('stat-net-today');
+    netEl.textContent = `₹${(fm.net_today || 0).toLocaleString()}`;
+    netEl.className = `text-2xl font-black mt-1 ${Number(fm.net_today) < 0 ? 'text-rose-400' : 'text-emerald-400'}`;
 
     const roomsRes = await api('/rooms');
     renderRoomRack(roomsRes.rooms);
@@ -360,10 +473,10 @@ function renderInHouseTable(stays) {
       <td class="px-4 py-3 text-slate-400">${s.expected_check_out}</td>
       <td class="px-4 py-3 text-right font-mono font-bold ${s.balance > 0 ? 'text-amber-400' : 'text-emerald-400'}">
         ₹${(s.balance || 0).toLocaleString()}
-      </td>
-      <td class="px-4 py-3 text-center space-x-1">
+      </td>        <td class="px-4 py-3 text-center space-x-1 whitespace-nowrap">
         <button onclick="viewFolio('${s.folio_id}')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded text-[11px] font-semibold border border-slate-700">Folio</button>
-        <button onclick="handleCheckOutStay('${s.id}', '${s.room_number}', ${s.balance})" class="px-2 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded text-[11px] font-semibold border border-rose-500/30">Checkout</button>
+        <button onclick="extendStay('${s.id}')" class="px-2 py-1 bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white rounded text-[11px] font-semibold border border-amber-500/30">Extend</button>
+        <button onclick="openCheckoutPreview('${s.id}')" class="px-2 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded text-[11px] font-semibold border border-rose-500/30">Checkout Bill</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -420,28 +533,7 @@ async function handleCheckInReservation(resId) {
   }
 }
 
-async function handleCheckOutStay(stayId, roomNumber, balance) {
-  let allowOverride = false;
-  if (balance > 0) {
-    const proceed = confirm(`Room ${roomNumber} has an unpaid balance of ₹${balance}. Proceed with authorized checkout override?`);
-    if (!proceed) return;
-    allowOverride = true;
-  } else {
-    if (!confirm(`Confirm checkout for Room ${roomNumber}?`)) return;
-  }
 
-  try {
-    await api(`/stays/${stayId}/check-out`, {
-      method: 'POST',
-      body: JSON.stringify({ allow_override: allowOverride })
-    });
-    alert(`Room ${roomNumber} checked out! Released to Housekeeping dirty.`);
-    loadFrontDeskData();
-    loadDashboardData();
-  } catch (err) {
-    alert(err.message);
-  }
-}
 
 // =========================================================
 // 3. GROUP BOOKINGS (STAGGERED CHECK-IN/OUT)
@@ -645,23 +737,29 @@ async function loadReservationsData() {
     data.reservations.forEach(r => {
       const tr = document.createElement('tr');
       tr.className = 'hover:bg-slate-800/40';
+      const balance = Number(r.total_amount || 0) - Number(r.deposit_paid || 0);
       tr.innerHTML = `
         <td class="px-4 py-3 font-mono text-indigo-400 font-bold">${r.booking_reference}</td>
         <td class="px-4 py-3 font-medium text-white">${r.guest_name}<div class="text-[10px] text-slate-400">${r.guest_phone}</div></td>
         <td class="px-4 py-3 text-slate-300">${r.room_type_name} ${r.room_number ? `(#${r.room_number})` : ''}</td>
         <td class="px-4 py-3 text-slate-400">${r.check_in_date} to ${r.check_out_date}</td>
-        <td class="px-4 py-3 font-mono">₹${r.rate_per_night}</td>
-        <td class="px-4 py-3 font-mono text-emerald-400">₹${r.deposit_paid}</td>
-        <td class="px-4 py-3">
-          <span class="px-2 py-0.5 text-[10px] font-bold rounded uppercase ${r.status === 'confirmed' ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-800 text-slate-400'}">
-            ${r.status}
-          </span>
+        <td class="px-4 py-3 font-mono">₹${Number(r.rate_per_night).toLocaleString()}</td>
+        <td class="px-4 py-3 font-mono text-emerald-400">₹${Number(r.deposit_paid || 0).toLocaleString()}
+          <div class="text-[10px] font-sans ${balance > 0 ? 'text-amber-400' : 'text-slate-500'}">Bal ₹${balance.toLocaleString()}</div>
         </td>
-        <td class="px-4 py-3 text-center space-x-1">
-          ${r.status === 'confirmed' 
-            ? `<button onclick="handleCheckInReservation('${r.id}')" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[11px] font-semibold">Check-In</button>
-               <button onclick="handleCancelReservation('${r.id}')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-rose-300 rounded text-[11px] font-semibold border border-slate-700">Cancel</button>`
-            : '—'}
+        <td class="px-4 py-3">
+          <span class="px-2 py-0.5 text-[10px] font-bold rounded uppercase ${getReservationStatusBadge(r.status)}" title="Payment: ${r.payment_status || 'unpaid'}">
+            ${String(r.status).replace(/_/g, ' ')}
+          </span>
+          <div class="text-[10px] text-slate-500 mt-1">${(r.payment_status || 'unpaid').replace(/_/g, ' ')}</div>
+        </td>
+        <td class="px-4 py-3 text-center space-x-1 whitespace-nowrap">
+          <button onclick="openReservationManage('${r.id}')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded text-[11px] font-semibold border border-slate-700">Manage</button>
+          <button onclick="downloadReservationBill('${r.id}')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded text-[11px] font-semibold border border-slate-700">Bill</button>
+          <button onclick="whatsappReservationBill('${r.id}')" class="px-2 py-1 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white rounded text-[11px] font-semibold border border-emerald-500/30">WhatsApp</button>
+          ${r.status === 'confirmed'
+            ? `<button onclick="handleCheckInReservation('${r.id}')" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[11px] font-semibold">Check-In</button>`
+            : ''}
         </td>
       `;
       tbody.appendChild(tr);
@@ -671,15 +769,30 @@ async function loadReservationsData() {
   }
 }
 
+function getReservationStatusBadge(status) {
+  if (status === 'confirmed') return 'bg-amber-500/20 text-amber-300';
+  if (status === 'awaiting_advance') return 'bg-rose-500/20 text-rose-300';
+  if (status === 'partially_paid' || status === 'fully_prepaid') return 'bg-indigo-500/20 text-indigo-300';
+  if (status === 'checked_in') return 'bg-emerald-500/20 text-emerald-300';
+  if (status === 'cancelled' || status === 'no_show') return 'bg-slate-800 text-slate-400';
+  return 'bg-slate-800 text-slate-400';
+}
+
 async function handleCancelReservation(id) {
-  if (!confirm('Are you sure you want to cancel this reservation?')) return;
+  const reason = prompt('Cancellation reason:', 'Guest requested cancellation');
+  if (!reason) return;
+  const refundStr = prompt('Refund amount from advance (₹, 0 for none):', '0');
+  if (refundStr === null) return;
+  if (!confirm('Cancel this booking? This is recorded in the audit trail.')) return;
   try {
     await api(`/reservations/${id}/cancel`, {
       method: 'POST',
-      body: JSON.stringify({ reason: 'Guest requested cancellation' })
+      body: JSON.stringify({ reason, refund_amount: Number(refundStr) || 0 })
     });
     alert('Reservation cancelled');
     loadReservationsData();
+    const manage = document.getElementById('modal-reservation-manage');
+    if (!manage.classList.contains('hidden')) openReservationManage(id);
   } catch (err) {
     alert(err.message);
   }
@@ -688,6 +801,153 @@ async function handleCancelReservation(id) {
 // =========================================================
 // 5. ROOMS & HOUSEKEEPING
 // =========================================================
+// ---------- Booking bill PDF + WhatsApp share ----------
+async function downloadReservationBill(reservationId) {
+  await downloadAuthorizedFile(`/reservations/${reservationId}/bill/pdf`, 'booking-bill.pdf');
+}
+
+async function whatsappReservationBill(reservationId) {
+  try {
+    const share = await api(`/reservations/${reservationId}/whatsapp`);
+    if (!confirm(`Send this booking bill to ${share.phone} on WhatsApp?\n\nThe PDF downloads first — attach it in the WhatsApp chat that opens.`)) return;
+    await downloadAuthorizedFile(`/reservations/${reservationId}/bill/pdf`, 'booking-bill.pdf');
+    window.open(share.url, '_blank', 'noopener');
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function whatsappStayBill(stayId) {
+  try {
+    const share = await api(`/stays/${stayId}/whatsapp`);
+    if (!confirm(`Send this checkout bill to ${share.phone} on WhatsApp?\n\nOpen the guest's check-out bill to download the PDF and attach it in the chat.`)) return;
+    window.open(share.url, '_blank', 'noopener');
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function extendReservation(reservationId) {
+  const nightsStr = prompt('Extend this booking by how many nights?', '1');
+  if (nightsStr === null) return;
+  const nights = Number(nightsStr);
+  if (!Number.isInteger(nights) || nights < 1) return alert('Enter a whole number of nights.');
+  try {
+    const res = await api(`/reservations/${reservationId}/extend`, {
+      method: 'POST',
+      body: JSON.stringify({ nights })
+    });
+    alert(`${res.message}\nExtra charges: ${money(res.price_difference)}` +
+      (res.confirmation_document ? `\nRevised confirmation: ${res.confirmation_document.document_number}` : ''));
+    loadReservationsData();
+    if (typeof managedReservationId !== 'undefined' && managedReservationId === reservationId) {
+      openReservationManage(reservationId);
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function extendStay(stayId) {
+  const nightsStr = prompt('Extend this stay by how many nights?', '1');
+  if (nightsStr === null) return;
+  const nights = Number(nightsStr);
+  if (!Number.isInteger(nights) || nights < 1) return alert('Enter a whole number of nights.');
+  try {
+    const res = await api(`/stays/${stayId}/extend`, {
+      method: 'POST',
+      body: JSON.stringify({ nights })
+    });
+    alert(`${res.message}\nAdditional room charges: ${money(res.extra_room_charges)}`);
+    loadFrontDeskData();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+// =========================================================
+// HOTEL EXPENSES
+// =========================================================
+async function loadExpensesData() {
+  try {
+    const dateInput = document.getElementById('expense-date');
+    if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().slice(0, 10);
+
+    const from = document.getElementById('expense-filter-from')?.value || '';
+    const to = document.getElementById('expense-filter-to')?.value || '';
+    const query = new URLSearchParams();
+    if (from) query.set('from', from);
+    if (to) query.set('to', to);
+
+    const data = await api(`/expenses${query.toString() ? `?${query}` : ''}`);
+    document.getElementById('expense-stat-total').textContent = money(data.totals.amount);
+    document.getElementById('expense-stat-cash').textContent = money(data.totals.cash);
+    document.getElementById('expense-stat-digital').textContent = money(data.totals.upi + data.totals.card + data.totals.bank);
+    document.getElementById('expense-stat-count').textContent = data.count;
+
+    const tbody = document.getElementById('tbody-expenses');
+    if (!data.expenses.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center py-6 text-slate-500">No expenses recorded for this period.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.expenses.map(e => `
+      <tr class="hover:bg-slate-800/40 ${e.status === 'void' ? 'opacity-50' : ''}">
+        <td class="px-3 py-2.5 font-mono text-slate-400">${e.expense_date}</td>
+        <td class="px-3 py-2.5 uppercase text-[10px] font-bold text-indigo-300">${String(e.category).replace(/_/g, ' ')}</td>
+        <td class="px-3 py-2.5 text-white">${e.description}${e.status === 'void' ? ' <span class="text-[9px] text-rose-300">VOID</span>' : ''}</td>
+        <td class="px-3 py-2.5 text-slate-400">${e.vendor || '—'}</td>
+        <td class="px-3 py-2.5 uppercase text-[10px] text-slate-400">${String(e.payment_mode).replace(/_/g, ' ')}</td>
+        <td class="px-3 py-2.5 text-right font-mono font-bold text-rose-300">${money(e.amount)}</td>
+        <td class="px-3 py-2.5 text-center">
+          ${e.status === 'posted' ? `<button onclick="voidExpense('${e.id}')" class="text-[10px] text-rose-400 hover:underline">Void</button>` : '—'}
+        </td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function handleExpenseSubmit(e) {
+  e.preventDefault();
+  const payload = {
+    expense_date: document.getElementById('expense-date').value,
+    category: document.getElementById('expense-category').value,
+    description: document.getElementById('expense-description').value,
+    amount: Number(document.getElementById('expense-amount').value),
+    tax_amount: Number(document.getElementById('expense-tax').value) || 0,
+    payment_mode: document.getElementById('expense-mode').value,
+    vendor: document.getElementById('expense-vendor').value,
+    paid_by: document.getElementById('expense-paid-by').value,
+    reference: document.getElementById('expense-reference').value,
+    notes: document.getElementById('expense-notes').value
+  };
+  try {
+    const res = await api('/expenses', { method: 'POST', body: JSON.stringify(payload) });
+    alert(res.message);
+    e.target.reset();
+    document.getElementById('expense-date').value = new Date().toISOString().slice(0, 10);
+    loadExpensesData();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function voidExpense(expenseId) {
+  const reason = prompt('Reason for voiding this expense:');
+  if (!reason) return;
+  try {
+    const res = await api(`/expenses/${expenseId}/void`, {
+      method: 'POST',
+      body: JSON.stringify({ reason })
+    });
+    alert(res.message);
+    loadExpensesData();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
 async function loadRoomsHousekeepingData() {
   try {
     const hkData = await api('/housekeeping/tasks');
@@ -1024,8 +1284,13 @@ async function handleSendToKitchen() {
 }
 
 async function openSettleDirectModal() {
-  const method = prompt('Select payment method for separate restaurant bill (cash / upi / card):', 'upi');
-  if (!method) return;
+  const input = prompt('Payment mode for this restaurant bill:\ncash / upi / card / bank / netbanking', 'upi');
+  if (!input) return;
+  const aliases = { bank: 'bank_transfer', neft: 'bank_transfer', rtgs: 'bank_transfer', 'net banking': 'netbanking' };
+  const method = aliases[input.trim().toLowerCase()] || input.trim().toLowerCase();
+  if (!['cash', 'upi', 'card', 'bank_transfer', 'netbanking'].includes(method)) {
+    return alert('Choose cash, upi, card, bank or netbanking.');
+  }
 
   try {
     let orderIdToSettle = activePosOrderId;
@@ -1047,13 +1312,17 @@ async function openSettleDirectModal() {
 
     const settleRes = await api(`/restaurant/orders/${orderIdToSettle}/settle`, {
       method: 'POST',
-      body: JSON.stringify({ payment_method: method.toLowerCase() })
+      body: JSON.stringify({ payment_method: method })
     });
 
-    alert(`Restaurant bill settled! Bill Number: ${settleRes.billNumber}`);
     clearPosCart();
     loadRestaurantPosData();
     loadDashboardData();
+    if (typeof showRestaurantBill === 'function' && settleRes.orderId) {
+      await showRestaurantBill(settleRes.orderId);
+    } else {
+      alert(`Restaurant bill settled! Bill Number: ${settleRes.billNumber}`);
+    }
   } catch (err) {
     alert(err.message);
   }
@@ -1106,6 +1375,24 @@ async function handlePostToRoom() {
 }
 
 function setPosSubTab(sub) {
+  const bookingsView = document.getElementById('subtab-bookings');
+  if (bookingsView) {
+    bookingsView.classList.toggle('hidden', sub !== 'bookings');
+    const bookingsBtn = document.getElementById('pos-btn-bookings');
+    if (bookingsBtn) {
+      bookingsBtn.className = sub === 'bookings'
+        ? 'px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold'
+        : 'px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-semibold';
+    }
+  }
+  if (sub === 'bookings') {
+    document.getElementById('subtab-pos').classList.add('hidden');
+    document.getElementById('subtab-kds').classList.add('hidden');
+    document.getElementById('pos-btn-pos').className = 'px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-semibold';
+    document.getElementById('pos-btn-kds').className = 'px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-semibold';
+    loadRestaurantBookings();
+    return;
+  }
   if (sub === 'pos') {
     document.getElementById('subtab-pos').classList.remove('hidden');
     document.getElementById('subtab-kds').classList.add('hidden');
@@ -1360,8 +1647,20 @@ function renderFolioDetails(folio, entries, payments) {
 async function generateTaxInvoice(folioId) {
   try {
     const res = await api(`/folios/${folioId}/invoice`, { method: 'POST' });
-    const inv = res.invoice;
+    if (res.duplicate) {
+      alert(`Invoice ${res.invoice.invoice_number} already exists for this folio. Showing the issued invoice.`);
+    }
+    showInvoiceDocument(res.invoice);
+  } catch (err) {
+    alert(err.message);
+  }
+}
 
+function showInvoiceDocument(inv) {
+    window.currentInvoicePdfPath = inv && inv.folio_id ? `/folios/${inv.folio_id}/invoice/pdf` : null;
+    const pdfButton = document.getElementById('invoice-download-pdf');
+    if (pdfButton) pdfButton.classList.toggle('hidden', !window.currentInvoicePdfPath);
+    document.getElementById('invoice-modal-title').textContent = 'Tax Invoice Preview (India GST Compliant)';
     const printable = document.getElementById('invoice-printable-content');
     printable.innerHTML = `
       <div class="flex justify-between items-start pb-4 border-b border-slate-200">
@@ -1474,9 +1773,6 @@ async function generateTaxInvoice(folioId) {
     `;
 
     document.getElementById('modal-invoice').classList.remove('hidden');
-  } catch (err) {
-    alert(err.message);
-  }
 }
 
 // =========================================================
@@ -1719,8 +2015,67 @@ async function executeNightAudit() {
 // =========================================================
 // 11. REPORTS & AUDIT
 // =========================================================
+function renderProfitLoss(pl) {
+  const summary = document.getElementById('profit-summary');
+  if (!summary) return;
+  const s = pl.summary;
+  const card = (label, value, tone = 'text-white') => `
+    <div class="p-3 bg-slate-800/60 rounded-xl border border-slate-700">
+      <div class="text-[10px] uppercase font-bold text-slate-500">${label}</div>
+      <div class="text-lg font-mono font-black mt-1 ${tone}">${money(value)}</div>
+    </div>`;
+  summary.innerHTML = [
+    card('Revenue (excl. GST)', s.net_revenue),
+    card('GST Collected', s.tax_collected, 'text-slate-300'),
+    card('Expenses', s.total_expenses, 'text-rose-300'),
+    card('Net Profit', s.net_profit, s.net_profit < 0 ? 'text-rose-400' : 'text-emerald-400'),
+    card('Margin', s.margin_percent, s.margin_percent < 0 ? 'text-rose-400' : 'text-emerald-400')
+  ].join('');
+  summary.lastElementChild.querySelector('div:last-child').textContent =
+    `${s.margin_percent < 0 ? '' : '+'}${s.margin_percent}%`;
+
+  const tbody = document.getElementById('tbody-profit-monthly');
+  if (!(pl.monthly || []).length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-slate-500">No revenue or expenses in this period.</td></tr>';
+  } else {
+    tbody.innerHTML = pl.monthly.map(row => `
+      <tr class="hover:bg-slate-800/40">
+        <td class="px-3 py-2 font-mono text-slate-300">${row.month}</td>
+        <td class="px-3 py-2 text-right font-mono text-emerald-300">${money(row.revenue)}</td>
+        <td class="px-3 py-2 text-right font-mono text-rose-300">${money(row.expenses)}</td>
+        <td class="px-3 py-2 text-right font-mono font-bold ${row.profit < 0 ? 'text-rose-400' : 'text-emerald-400'}">${money(row.profit)}</td>
+      </tr>
+    `).join('');
+  }
+
+  const expenseContainer = document.getElementById('expense-category-breakdown');
+  if (expenseContainer) {
+    expenseContainer.innerHTML = (pl.expenses_by_category || []).length
+      ? pl.expenses_by_category.map(row => `
+          <div class="flex justify-between items-center text-xs p-2.5 bg-slate-800/60 rounded-xl border border-slate-700/60">
+            <div>
+              <span class="font-bold text-white uppercase text-[11px]">${String(row.category).replace(/_/g, ' ')}</span>
+              <span class="text-[10px] text-slate-400 ml-2">(${row.entries} entries)</span>
+            </div>
+            <span class="font-mono font-bold text-rose-300">${money(row.total)}</span>
+          </div>`).join('')
+      : '<div class="text-slate-500 text-xs">No expenses recorded in this period.</div>';
+  }
+}
+
 async function loadReportsData() {
   try {
+    const fromInput = document.getElementById('pl-from');
+    const toInput = document.getElementById('pl-to');
+    if (fromInput && !fromInput.value) {
+      const now = new Date();
+      fromInput.value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    }
+    if (toInput && !toInput.value) toInput.value = new Date().toISOString().slice(0, 10);
+
+    const pl = await api(`/reports/profit-loss?from=${encodeURIComponent(fromInput.value)}&to=${encodeURIComponent(toInput.value)}`);
+    renderProfitLoss(pl);
+
     const revData = await api('/reports/revenue');
     const revContainer = document.getElementById('revenue-department-breakdown');
     revContainer.innerHTML = '';
@@ -1782,6 +2137,190 @@ async function loadReportsData() {
 }
 
 // =========================================================
+// RESTAURANT ADVANCE TABLE BOOKINGS
+// =========================================================
+async function loadRestaurantBookings() {
+  try {
+    const [data, tablesData] = await Promise.all([
+      api('/restaurant/bookings'),
+      api('/restaurant/tables')
+    ]);
+
+    const tableSelect = document.getElementById('rb-table');
+    if (tableSelect) {
+      const current = tableSelect.value;
+      tableSelect.innerHTML = '<option value="">No specific table</option>' + tablesData.tables.map(t =>
+        `<option value="${t.id}">${t.table_number} · ${t.section || 'Main'} (${t.capacity} seats)</option>`
+      ).join('');
+      tableSelect.value = current;
+    }
+
+    document.getElementById('restaurant-booking-summary').textContent =
+      `${data.summary.pending} pending · ${data.summary.confirmed} confirmed · ${data.summary.seated} seated`;
+
+    const container = document.getElementById('restaurant-bookings-list');
+    if (!data.bookings.length) {
+      container.innerHTML = '<div class="text-slate-500 py-6 text-center">No advance table bookings yet.</div>';
+      return;
+    }
+
+    container.innerHTML = data.bookings.map(b => {
+      const statusColor = b.status === 'confirmed' ? 'text-emerald-300 bg-emerald-500/15'
+        : b.status === 'seated' ? 'text-sky-300 bg-sky-500/15'
+        : b.status === 'pending' ? 'text-amber-300 bg-amber-500/15'
+        : 'text-slate-400 bg-slate-700/40';
+      const canAct = ['pending', 'confirmed', 'seated'].includes(b.status);
+      return `
+        <div class="p-3 bg-slate-800/50 border border-slate-700 rounded-xl">
+          <div class="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-white font-bold">${b.guest_name}</span>
+                <span class="font-mono text-[10px] text-indigo-300">${b.booking_number}</span>
+                <span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${statusColor}">${String(b.status).replace(/_/g, ' ')}</span>
+              </div>
+              <div class="text-[11px] text-slate-400 mt-1">
+                ${b.guest_phone} · ${b.booking_date} at ${String(b.booking_time).slice(0, 5)} · ${b.guest_count} guest(s)
+                ${b.table_number ? ` · Table ${b.table_number}` : ''}
+              </div>
+            </div>
+            <div class="text-right">
+              <div class="font-mono text-emerald-300">${money(b.advance_paid)}</div>
+              <div class="text-[9px] uppercase text-slate-500">${String(b.payment_mode || 'no advance').replace(/_/g, ' ')}</div>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-slate-700">
+            ${b.status === 'pending' ? `<button onclick="recordRestaurantBookingAdvance('${b.id}')" class="px-2 py-1 bg-emerald-600/20 text-emerald-300 rounded text-[10px] font-bold border border-emerald-500/30">Take Advance</button>` : ''}
+            ${['pending', 'confirmed'].includes(b.status) ? `<button onclick="restaurantBookingAction('${b.id}', 'seat')" class="px-2 py-1 bg-sky-600/20 text-sky-300 rounded text-[10px] font-bold border border-sky-500/30">Seat Guest</button>` : ''}
+            ${b.status === 'seated' ? `<button onclick="restaurantBookingAction('${b.id}', 'complete')" class="px-2 py-1 bg-indigo-600/20 text-indigo-300 rounded text-[10px] font-bold border border-indigo-500/30">Complete</button>` : ''}
+            <button onclick="whatsappRestaurantBooking('${b.id}')" class="px-2 py-1 bg-slate-900 text-emerald-300 rounded text-[10px] font-bold border border-slate-700">WhatsApp</button>
+            <button onclick="downloadRestaurantBookingReceipt('${b.id}')" class="px-2 py-1 bg-slate-900 text-slate-300 rounded text-[10px] font-bold border border-slate-700">Receipt PDF</button>
+            ${canAct ? `<button onclick="cancelRestaurantBooking('${b.id}')" class="px-2 py-1 bg-rose-600/15 text-rose-300 rounded text-[10px] font-bold border border-rose-500/30">Cancel</button>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function handleRestaurantBookingSubmit(e) {
+  e.preventDefault();
+  const advance = Number(document.getElementById('rb-advance').value) || 0;
+  if (advance <= 0 && !confirm('No advance entered. Save this booking as pending instead of confirmed?')) return;
+
+  const payload = {
+    guest_name: document.getElementById('rb-guest-name').value.trim(),
+    guest_phone: document.getElementById('rb-phone').value.trim(),
+    booking_date: document.getElementById('rb-date').value,
+    booking_time: document.getElementById('rb-time').value,
+    guest_count: Number(document.getElementById('rb-count').value),
+    table_id: document.getElementById('rb-table').value || null,
+    advance_amount: advance,
+    payment_mode: document.getElementById('rb-mode').value,
+    transaction_ref: document.getElementById('rb-ref').value.trim() || null,
+    notes: document.getElementById('rb-notes').value.trim() || null
+  };
+
+  const key = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+  try {
+    const res = await api('/restaurant/bookings', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': key },
+      body: JSON.stringify({ ...payload, idempotency_key: key })
+    });
+    alert(res.message + (res.receipt ? `\nReceipt: ${res.receipt.receipt_number}` : ''));
+    e.target.reset();
+    document.getElementById('rb-date').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('rb-time').value = '19:30';
+    document.getElementById('rb-count').value = '2';
+    document.getElementById('rb-advance').value = '0';
+    loadRestaurantBookings();
+    loadRestaurantPosData();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function recordRestaurantBookingAdvance(bookingId) {
+  const amountStr = prompt('Advance amount to collect (₹):', '500');
+  if (amountStr === null) return;
+  const amount = Number(amountStr);
+  if (!(amount > 0)) return alert('Enter a valid advance amount.');
+  const mode = prompt('Payment mode: cash / upi / bank / netbanking / card', 'upi');
+  if (!mode) return;
+  const ref = prompt('Payment reference (optional):', '') || null;
+  try {
+    const res = await api(`/restaurant/bookings/${bookingId}/advance`, {
+      method: 'POST',
+      body: JSON.stringify({ amount, payment_mode: mode, transaction_ref: ref })
+    });
+    alert(`${res.message}\nReceipt: ${res.receipt.receipt_number}`);
+    loadRestaurantBookings();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function restaurantBookingAction(bookingId, action) {
+  try {
+    const res = await api(`/restaurant/bookings/${bookingId}/${action}`, { method: 'POST', body: '{}' });
+    alert(res.message);
+    loadRestaurantBookings();
+    loadRestaurantPosData();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function cancelRestaurantBooking(bookingId) {
+  const reason = prompt('Cancellation reason:', 'Guest cancelled the booking');
+  if (!reason) return;
+  const refundStr = prompt('Refund amount from advance (₹, 0 for none):', '0');
+  if (refundStr === null) return;
+  try {
+    const res = await api(`/restaurant/bookings/${bookingId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ reason, refund_amount: Number(refundStr) || 0 })
+    });
+    alert(res.message + (res.refund ? `\nRefund ${res.refund.receipt_number}: ${money(res.refund.amount)}` : ''));
+    loadRestaurantBookings();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function whatsappRestaurantBooking(bookingId) {
+  try {
+    const share = await api(`/restaurant/bookings/${bookingId}/whatsapp`);
+    window.open(share.url, '_blank', 'noopener');
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function downloadRestaurantBookingReceipt(bookingId) {
+  await downloadAuthorizedFile(`/restaurant/bookings/${bookingId}/receipt/pdf`, 'restaurant-booking-receipt.pdf');
+}
+
+async function whatsappRestaurantBill() {
+  if (!currentRestaurantBill) return alert('No restaurant bill loaded.');
+  const phone = prompt('Guest WhatsApp number (with country code, e.g. 919876543210):');
+  if (!phone) return;
+  try {
+    const share = await api(`/restaurant/orders/${currentRestaurantBill.id}/whatsapp?phone=${encodeURIComponent(phone)}`);
+    await downloadAuthorizedFile(
+      `/restaurant/orders/${currentRestaurantBill.id}/bill/pdf`,
+      `${currentRestaurantBill.bill_number}.pdf`
+    );
+    window.open(share.url, '_blank', 'noopener');
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+// =========================================================
 // 12. SETTINGS, BACKUP, MAIL & GOOGLE DRIVE
 // =========================================================
 async function loadSettingsData() {
@@ -1799,6 +2338,7 @@ async function loadSettingsData() {
     document.getElementById('edit-bank-acc').value = p.bank_account_number || '';
     document.getElementById('edit-bank-ifsc').value = p.bank_ifsc || '';
     document.getElementById('edit-upi-id').value = p.upi_id || '';
+    document.getElementById('edit-country-code').value = p.phone_country_code || '91';
 
     // Populate SMTP form
     document.getElementById('smtp-host').value = smtp.host || '';
@@ -1813,6 +2353,14 @@ async function loadSettingsData() {
     document.getElementById('gdrive-enabled').checked = Boolean(gdrive.enabled);
     const badge = document.getElementById('gdrive-status-badge');
     badge.textContent = `Status: ${gdrive.status || 'Not Configured'} ${gdrive.last_sync ? `(Last sync: ${gdrive.last_sync.slice(0, 16)})` : ''}`;
+
+    const logoPreview = document.getElementById('settings-logo-preview');
+    if (logoPreview) logoPreview.src = p.logo_url || '/logo.png';
+
+    if (typeof loadNetworkSettings === 'function') await loadNetworkSettings();
+    if (typeof loadSystemHealth === 'function') await loadSystemHealth();
+    if (typeof loadStaffUsers === 'function') await loadStaffUsers();
+    if (typeof loadAboutApp === 'function') await loadAboutApp();
   } catch (err) {
     console.error('Error loading settings:', err);
   }
@@ -1827,7 +2375,8 @@ async function handleSaveHotelProfile(e) {
     bank_name: document.getElementById('edit-bank-name').value,
     bank_account_number: document.getElementById('edit-bank-acc').value,
     bank_ifsc: document.getElementById('edit-bank-ifsc').value,
-    upi_id: document.getElementById('edit-upi-id').value
+    upi_id: document.getElementById('edit-upi-id').value,
+    phone_country_code: document.getElementById('edit-country-code').value
   };
 
   try {
@@ -1904,6 +2453,55 @@ async function handleSyncGDriveNow() {
     const res = await api('/backup/gdrive-sync', { method: 'POST' });
     alert(res.message);
     loadSettingsData();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+// ---------- Hotel logo (admin) ----------
+async function uploadHotelLogo() {
+  const input = document.getElementById('hotel-logo-input');
+  if (!input || !input.files.length) return alert('Choose a PNG, JPG or WebP image first.');
+  const file = input.files[0];
+
+  try {
+    const dataUrl = await readImageFileAsDataUrl(file);
+    const res = await api('/settings/logo', {
+      method: 'POST',
+      body: JSON.stringify({ data_url: dataUrl })
+    });
+    alert(res.message);
+    const preview = document.getElementById('settings-logo-preview');
+    if (preview) preview.src = res.logo_url;
+    const header = document.getElementById('header-logo');
+    if (header) header.src = res.logo_url;
+    const icon = document.querySelector('link[rel="icon"]');
+    if (icon) icon.href = res.logo_url;
+    if (currentProperty) currentProperty.logo_url = res.logo_url;
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function resetHotelLogo() {
+  if (!confirm('Reset the hotel logo to the Nexuzy default mark?')) return;
+  try {
+    const res = await api('/settings/logo', { method: 'DELETE' });
+    alert(res.message);
+    const preview = document.getElementById('settings-logo-preview');
+    if (preview) preview.src = res.logo_url;
+    const header = document.getElementById('header-logo');
+    if (header) header.src = res.logo_url;
+    if (currentProperty) currentProperty.logo_url = res.logo_url;
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function createDesktopShortcut() {
+  try {
+    const res = await api('/setup/shortcut', { method: 'POST', body: '{}' });
+    alert(`${res.message}\n${res.path}`);
   } catch (err) {
     alert(err.message);
   }
@@ -2203,14 +2801,19 @@ async function handleAddPaymentSubmit(e) {
   };
 
   try {
+    const payloadWithKey = { ...payload, idempotency_key: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())) };
     const res = await api(`/folios/${currentSelectedFolioId}/payments`, {
       method: 'POST',
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payloadWithKey),
+      headers: { 'Idempotency-Key': payloadWithKey.idempotency_key }
     });
-    alert(`Payment recorded! Receipt Number: ${res.receiptNumber}`);
+    alert(res.duplicate ? `Payment already recorded. Receipt: ${res.receiptNumber}` : `Payment recorded! Receipt Number: ${res.receiptNumber}`);
     closeModal('modal-add-payment');
     loadSelectedFolio();
     loadDashboardData();
+    if (checkoutPreviewState && !document.getElementById('modal-checkout').classList.contains('hidden')) {
+      openCheckoutPreview(checkoutPreviewState.stayId);
+    }
   } catch (err) {
     alert(err.message);
   }

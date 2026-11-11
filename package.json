@@ -1,16 +1,34 @@
 {
   "name": "nexuzy-pms",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Nexuzy PMS - Open-source Property, Restaurant, Bar, POS & Operations Management System",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
+    "launch": "node scripts/launch.js",
     "seed": "node server/db/seed.js",
-    "test": "node test/run-tests.js"
+    "shortcut": "node scripts/create-shortcut.js",
+    "build:installer": "node installer/build-installer.js",
+    "build:installers": "node installer/build-installer.js && node installer/build-cross-platform.js",
+    "migrate": "node server/db/migrate.js",
+    "test": "node test/run-tests.js && node test/financial-tests.js && node test/management-tests.js",
+    "test:legacy": "node test/run-tests.js",
+    "test:financial": "node test/financial-tests.js",
+    "lint": "node scripts/lint.js",
+    "verify": "node scripts/verify-release.js",
+    "release:package": "node scripts/package-release.js",
+    "package:installers": "node scripts/package-installers.js"
+  },
+  "engines": {
+    "node": ">=18.17"
   },
   "author": "Nexuzy Lab (David <david@nexuzy.in>)",
-  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/david0154/Nexuzy-PMS.git"
+  },
   "homepage": "https://nexuzy.in",
+  "license": "MIT",
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
@@ -18,6 +36,8 @@
     "express": "^5.3.0",
     "jsonwebtoken": "^9.0.3",
     "nodemailer": "^10.5.0",
+    "pdfkit": "^0.17.2",
+    "qrcode": "^1.5.4",
     "sqlite3": "^6.0.1",
     "uuid": "^14.0.3"
   }

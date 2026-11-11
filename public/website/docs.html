@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#060a14">
+  <title>Nexuzy PMS Field Guide — Setup, Operations &amp; Administration</title>
+  <meta name="description" content="The complete illustrated Nexuzy PMS guide: installation, first-run setup, front desk, reservations, restaurant POS, GST billing, reports, backups, LAN mode and troubleshooting.">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="stylesheet" href="assets/css/site.css">
+  <script>document.documentElement.classList.add('js');</script>
+</head>
+<body class="docs-body">
+  <a class="skip-link" href="#docs-main">Skip to guide</a>
+
+  <svg class="svg-sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="icon-arrow-up-right" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></symbol>
+    <symbol id="icon-external" viewBox="0 0 24 24"><path d="M14 5h5v5M19 5l-8 8M9 5H5v14h14v-4"/></symbol>
+    <symbol id="icon-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 17h.01M12 17h.01"/></symbol>
+    <symbol id="icon-bed" viewBox="0 0 24 24"><path d="M3 19V7M21 19V9a2 2 0 0 0-2-2H9v6h12M3 15h18M3 19h18"/><path d="M7 11h2"/></symbol>
+    <symbol id="icon-fork" viewBox="0 0 24 24"><path d="M7 3v7M5 3v4a2 2 0 0 0 4 0V3M7 10v11M17 3v18M14 7a3 3 0 0 1 6 0v3h-6z"/></symbol>
+    <symbol id="icon-receipt" viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></symbol>
+    <symbol id="icon-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+    <symbol id="icon-shield" viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.2 3 7.7 7.5 9.5 4.5-1.8 7.5-5.3 7.5-9.5V6z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="icon-book" viewBox="0 0 24 24"><path d="M4 4h6a3 3 0 0 1 3 3v13a3 3 0 0 0-3-3H4zM20 4h-6a3 3 0 0 0-3 3v13a3 3 0 0 1 3-3h6z"/></symbol>
+    <symbol id="icon-github" viewBox="0 0 24 24"><path d="M15 21v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6A4.7 4.7 0 0 0 18.8 6a4.4 4.4 0 0 0-.1-3.3S17.5 2.3 15 4a12 12 0 0 0-6 0C6.5 2.3 5.3 2.7 5.3 2.7A4.4 4.4 0 0 0 5.2 6 4.7 4.7 0 0 0 4 9.5c0 4.5 2.7 5.7 5.5 6-.4.4-.6.9-.6 1.5V21"/><path d="M9 18c-2.5.8-3.5-.4-4-1.5"/></symbol>
+    <symbol id="icon-heart" viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></symbol>
+    <symbol id="icon-monitor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+    <symbol id="icon-wifi" viewBox="0 0 24 24"><path d="M3 9a15 15 0 0 1 18 0M6 12a10 10 0 0 1 12 0M9 15a5 5 0 0 1 6 0M12 19h.01"/></symbol>
+    <symbol id="icon-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v7c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12v7c0 1.7 3.6 3 8 3s8-1.3 8-3v-7"/></symbol>
+    <symbol id="icon-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="icon-x" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="icon-chevron-left" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></symbol>
+    <symbol id="icon-chevron-right" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
+    <symbol id="icon-print" viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="7" rx="1"/></symbol>
+    <symbol id="icon-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
+    <symbol id="icon-arrow-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+    <symbol id="icon-spark" viewBox="0 0 24 24"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></symbol>
+  </svg>
+
+  <div class="docs-progress" aria-hidden="true"><div class="docs-progress-bar" data-progress-bar></div></div>
+
+  <header class="site-header docs-header">
+    <div class="container header-inner">
+      <a class="brand" href="index.html" aria-label="Nexuzy PMS home">
+        <span class="brand-mark"><img src="assets/logo.png" alt=""></span>
+        <span class="brand-copy">
+          <span class="brand-name">Nexuzy <span>PMS</span></span>
+          <span class="brand-sub">Field guide · v1.2.0</span>
+        </span>
+      </a>
+
+      <nav class="site-nav" aria-label="Documentation navigation">
+        <a class="nav-link" href="index.html">Home</a>
+        <a class="nav-link" href="index.html#screens">Screens</a>
+        <a class="nav-link" href="index.html#install">Install</a>
+        <a class="nav-link" href="https://github.com/david0154/Nexuzy-PMS" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+
+      <div class="site-actions">
+        <a class="btn btn-ghost" href="mailto:david@nexuzy.in">Support</a>
+        <a class="btn btn-primary" href="/">Open app <svg class="icon" aria-hidden="true"><use href="#icon-arrow"></use></svg></a>
+        <button class="mobile-toggle docs-mobile-toggle" type="button" data-docs-toggle aria-expanded="false" aria-controls="docs-sidebar" aria-label="Open guide navigation">
+          <svg class="icon" aria-hidden="true"><use href="#icon-menu"></use></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <button class="docs-overlay" type="button" data-docs-overlay aria-label="Close guide navigation"></button>
+
+  <section class="docs-hero">
+    <div class="container">
+      <p class="docs-kicker"><svg class="icon" aria-hidden="true"><use href="#icon-book"></use></svg> The complete field guide</p>
+      <h1>Run the property.<br><span class="gradient-text">Not the software.</span></h1>
+      <p>
+        Everything you need to install Nexuzy PMS, complete the first-run setup,
+        run a shift, settle the day and keep the hotel’s data safe — written for
+        real teams, with real screens.
+      </p>
+      <div class="docs-meta">
+        <span><span class="dot"></span> 19 chapters</span>
+        <span><span class="dot"></span> 17 annotated screenshots</span>
+        <span><span class="dot"></span> Version 1.2.0</span>
+        <span><span class="dot"></span> Updated November 2026</span>
+        <span><span class="dot"></span> MIT licensed</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="container docs-layout">
+    <aside class="docs-sidebar" id="docs-sidebar" data-docs-sidebar aria-label="Guide contents">
+      <div class="docs-search-wrap">
+        <svg class="icon" aria-hidden="true"><use href="#icon-search"></use></svg>
+        <input class="docs-search" type="search" placeholder="Search the guide…" autocomplete="off" data-doc-search aria-label="Search the guide">
+        <button class="clear-search" type="button" data-clear-search aria-label="Clear search"><svg class="icon" aria-hidden="true"><use href="#icon-x"></use></svg></button>
+      </div>
+      <p class="search-status" data-search-status aria-live="polite">19 sections in this guide</p>
+
+      <nav aria-label="Table of contents">
+        <div class="docs-nav-group">
+          <h3>Start here</h3>
+          <a class="toc-link" href="#welcome" data-toc-link><span class="toc-num">01</span> Welcome to Nexuzy</a>
+          <a class="toc-link" href="#quick-start" data-toc-link><span class="toc-num">02</span> Quick start</a>
+          <a class="toc-link" href="#first-run" data-toc-link><span class="toc-num">03</span> First-run setup</a>
+          <a class="toc-link" href="#sign-in" data-toc-link><span class="toc-num">04</span> Sign in &amp; roles</a>
+        </div>
+        <div class="docs-nav-group">
+          <h3>Everyday operations</h3>
+          <a class="toc-link" href="#dashboard" data-toc-link><span class="toc-num">05</span> Dashboard</a>
+          <a class="toc-link" href="#front-desk" data-toc-link><span class="toc-num">06</span> Front desk</a>
+          <a class="toc-link" href="#reservations" data-toc-link><span class="toc-num">07</span> Reservations</a>
+          <a class="toc-link" href="#rooms" data-toc-link><span class="toc-num">08</span> Rooms &amp; housekeeping</a>
+        </div>
+        <div class="docs-nav-group">
+          <h3>Restaurant</h3>
+          <a class="toc-link" href="#menu" data-toc-link><span class="toc-num">09</span> Menu management</a>
+          <a class="toc-link" href="#table-bookings" data-toc-link><span class="toc-num">10</span> Table bookings &amp; advances</a>
+          <a class="toc-link" href="#pos" data-toc-link><span class="toc-num">11</span> POS &amp; kitchen display</a>
+        </div>
+        <div class="docs-nav-group">
+          <h3>Money &amp; reporting</h3>
+          <a class="toc-link" href="#folios" data-toc-link><span class="toc-num">12</span> Guest folios</a>
+          <a class="toc-link" href="#invoices" data-toc-link><span class="toc-num">13</span> GST invoices</a>
+          <a class="toc-link" href="#expenses" data-toc-link><span class="toc-num">14</span> Hotel expenses</a>
+          <a class="toc-link" href="#reports" data-toc-link><span class="toc-num">15</span> Reports &amp; audit</a>
+        </div>
+        <div class="docs-nav-group">
+          <h3>System</h3>
+          <a class="toc-link" href="#settings" data-toc-link><span class="toc-num">16</span> Settings &amp; backup</a>
+          <a class="toc-link" href="#lan" data-toc-link><span class="toc-num">17</span> LAN mode</a>
+          <a class="toc-link" href="#updates" data-toc-link><span class="toc-num">18</span> Updates &amp; uninstall</a>
+          <a class="toc-link" href="#troubleshooting" data-toc-link><span class="toc-num">19</span> Troubleshooting</a>
+        </div>
+      </nav>
+
+      <div class="sidebar-actions">
+        <button class="sidebar-action" type="button" data-print><svg class="icon" aria-hidden="true"><use href="#icon-print"></use></svg> Print / save as PDF</button>
+        <a class="sidebar-action" href="index.html#screens"><svg class="icon" aria-hidden="true"><use href="#icon-monitor"></use></svg> Browse all screens</a>
+        <a class="sidebar-action" href="https://razorpay.me/@nexuzylab" target="_blank" rel="noopener"><svg class="icon" aria-hidden="true"><use href="#icon-heart"></use></svg> Support the project</a>
+      </div>
+    </aside>
+
+    <main class="docs-main" id="docs-main">
+      <div class="search-empty" data-search-empty>
+        No section matched that search. Try a module name such as <strong>folio</strong>,
+        <strong>GST</strong>, <strong>backup</strong> or <strong>LAN</strong>.
+      </div>
+
+      <section class="doc-intro doc-section" id="welcome" data-doc-section>
+        <h2><span class="section-icon"><svg class="icon" aria-hidden="true"><use href="#icon-spark"></use></svg></span> Welcome to Nexuzy PMS</h2>
+        <p class="doc-lede">
+          Nexuzy PMS is a local-first operating system for independent hotels,
+          guest houses and restaurants. It joins the front desk, reservations,
+          restaurant service, billing and the back office into one connected
+          workspace — with the hotel’s database stored on the hotel’s own computer.
+        </p>
+        <div class="doc-intro-grid">
+          <div class="fact-card"><strong>Local first</strong><span>SQLite database</span></div>
+          <div class="fact-card"><strong>13</strong><span>workspaces</span></div>
+          <div class="fact-card"><strong>17</strong><span>documented screens</span></div>
+          <div class="fact-card"><strong>MIT</strong><span>open source</span></div>
+        </div>
+
+        <h3>The short version</h3>
+        <ol class="steps">
+          <li><strong>Install the app</strong><span>Run the Windows Setup EXE, use a macOS/Linux package, or start it from source or Docker.</span></li>
+          <li><strong>Complete the wizard</strong><span>Add the property, tax and banking details, then create the first administrator account.</span></li>
+          <li><strong>Run the shift</strong><span>Take bookings, check guests in, serve the restaurant and settle folios from the same guest record.</span></li>
+          <li><strong>Back up and close</strong><span>Export a portable <code>.nxp</code> backup and use Reports → Profit &amp; Loss for the day or month.</span></li>
+        </ol>
+
+        <h3>What is in the workspace?</h3>
+        <div class="doc-table-wrap">
+          <table class="doc-table">
+            <thead><tr><th>Area</th><th>What it does</th><th>Who uses it</th></tr></thead>
+            <tbody>
+              <tr><td>Front Desk &amp; Reservations</td><td>Arrivals, departures, walk-ins, bookings, extensions and group stays.</td><td>Front desk, manager</td></tr>
+              <tr><td>Rooms &amp; HK</td><td>Room types, nightly rates, inventory, status and housekeeping actions.</td><td>Housekeeping, manager</td></tr>
+              <tr><td>Restaurant POS &amp; KDS</td><td>Menu, tables, advance bookings, orders, kitchen display and room posting.</td><td>Captains, waiters, kitchen, cashier</td></tr>
+              <tr><td>Billing &amp; GST</td><td>Guest folios, payments, tax invoices and printable documents.</td><td>Front desk, cashier, accounts</td></tr>
+              <tr><td>Expenses &amp; Reports</td><td>Operating costs, profit and loss, GST summary and the audit trail.</td><td>Owner, manager, accounts</td></tr>
+              <tr><td>Settings</td><td>Property details, staff, backup, email, LAN, updates and uninstall.</td><td>Administrator</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="doc-callout">
+          <strong>New to the app?</strong>
+          <p>Do the first-run setup with the owner or manager present. Use a real property name, correct tax rates and a password that is stored safely — these become the foundation for every bill and report.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="quick-start" data-doc-section>
+        <h2><span class="section-icon"><svg class="icon" aria-hidden="true"><use href="#icon-monitor"></use></svg></span> Quick start</h2>
+        <p class="doc-lede">Choose the installation route that matches the computer that will host the property. The Windows installer is the simplest path for a front-desk PC.</p>
+
+        <h3>Before you begin</h3>
+        <ul class="checklist">
+          <li>Hotel / property name and address</li>
+          <li>Contact phone and email</li>
+          <li>GSTIN, if registered</li>
+          <li>Bank account, IFSC and UPI ID</li>
+          <li>Room and restaurant GST rates</li>
+          <li>Administrator name and password</li>
+          <li>Hotel logo (optional)</li>
+          <li>A backup drive or folder</li>
+        </ul>
+
+        <h3>Windows installer — no Node.js required</h3>
+        <ol class="steps">
+          <li><strong>Run the Setup EXE</strong><span>Use <code>Nexuzy-PMS-Setup-1.2.0.exe</code> from the release bundle.</span></li>
+          <li><strong>Open the shortcut</strong><span>The installer creates Desktop and Start Menu shortcuts and carries its own runtime.</span></li>
+          <li><strong>Complete the wizard</strong><span>The app opens on the first free local port; the default is 5000.</span></li>
+        </ol>
+        <div class="code-block">
+          <div class="code-head"><span>Default Windows location</span><button class="copy-btn" type="button" data-copy-target="cmd-win-path"><svg class="icon" aria-hidden="true"><use href="#icon-copy"></use></svg> Copy</button></div>
+          <pre id="cmd-win-path"><code>%LOCALAPPDATA%\Programs\Nexuzy PMS</code></pre>
+        </div>
+        <div class="doc-callout">
+          <strong>Upgrades are data-safe</strong>
+          <p>Upgrading keeps the <code>data\</code> folder. Uninstalling removes the app only; the database, uploaded logo and backups stay in place. Take a backup before any major change.</p>
+        </div>
+
+        <h3>From source</h3>
+        <div class="code-block">
+          <div class="code-head"><span>Windows · source checkout</span><button class="copy-btn" type="button" data-copy-target="cmd-source"><svg class="icon" aria-hidden="true"><use href="#icon-copy"></use></svg> Copy</button></div>
+          <pre id="cmd-source"><code>install.bat
+start.bat</code></pre>
+        </div>
+        <div class="code-block">
+          <div class="code-head"><span>Any OS with Node.js 18.17+</span><button class="copy-btn" type="button" data-copy-target="cmd-node"><svg class="icon" aria-hidden="true"><use href="#icon-copy"></use></svg> Copy</button></div>
+          <pre id="cmd-node"><code>npm install
+npm start</code></pre>
+        </div>
+
+        <h3>Linux &amp; macOS</h3>
+        <div class="code-block">
+          <div class="code-head"><span>Terminal</span><button class="copy-btn" type="button" data-copy-target="cmd-unix"><svg class="icon" aria-hidden="true"><use href="#icon-copy"></use></svg> Copy</button></div>
+          <pre id="cmd-unix"><code>chmod +x install.sh start.sh
+./install.sh
+./start.sh</code></pre>
+        </div>
+        <p>Linux packages need a 64-bit glibc system. macOS packages are available for Apple Silicon and Intel. The app is unsigned, so use right-click → Open on first launch if Gatekeeper blocks it.</p>
+
+        <h3>Docker</h3>
+        <div class="code-block">
+          <div class="code-head"><span>Terminal</span><button class="copy-btn" type="button" data-copy-target="cmd-docker"><svg class="icon" aria-hidden="true"><use href="#icon-copy"></use></svg> Copy</button></div>
+          <pre id="cmd-docker"><code>docker compose up -d</code></pre>
+        </div>
+        <p>Open <code>http://localhost:5000</code>, then complete the same first-run wizard. For a hosted server, set a strong administrator password and protect the host and network before allowing access.</p>
+
+        <div class="doc-callout warning">
+          <strong>Port already in use?</strong>
+          <p>Nexuzy tries ports 5000–5009 when the default is occupied. The actual port is written to <code>data/runtime.json</code> and the launcher log. Two installations can therefore run side by side.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="first-run" data-doc-section>
+        <h2><span class="section-icon"><svg class="icon" aria-hidden="true"><use href="#icon-spark"></use></svg></span> First-run setup</h2>
+        <p class="doc-lede">On a fresh install, Nexuzy opens a two-part setup wizard. It creates the hotel, the first admin account and a clean starter catalogue. No demo bookings are inserted.</p>
+
+        <div class="doc-figure">
+          <button class="figure-button" type="button" data-lightbox data-src="assets/screenshots/setup-step-1.png" data-title="First-run setup — property information" data-alt="Nexuzy PMS first-run setup with hotel name, address, contact, GSTIN and logo fields.">
+            <img src="assets/screenshots/setup-step-1.png" alt="Nexuzy PMS first-run setup with hotel name, address, contact, GSTIN and logo fields." loading="lazy" decoding="async">
+          </button>
+          <figcaption>Step 1 — property name, contact details, address and optional hotel logo.</figcaption>
+        </div>
+
+        <h3>Step 1 — property profile</h3>
+        <ol class="steps">
+          <li><strong>Hotel / property name</strong><span>This appears on the dashboard, confirmations and printed documents.</span></li>
+          <li><strong>Property code</strong><span>A short code such as <code>GHP-17</code>; keep it consistent with internal records.</span></li>
+          <li><strong>Contact phone and email</strong><span>Used on guest-facing documents and as a fallback for administrator email.</span></li>
+          <li><strong>Address, city, state and country</strong><span>Printed on tax invoices; enter the registered address.</span></li>
+          <li><strong>GSTIN / tax ID</strong><span>Optional at this stage, but required on Indian GST invoices. Add it before issuing tax invoices.</span></li>
+          <li><strong>Hotel logo</strong><span>Optional PNG/JPG/WebP. Large images are resized automatically; the logo can be changed later in Settings.</span></li>
+        </ol>
+
+        <h3>Step 2 — operations and ownership</h3>
+        <div class="doc-figure">
+          <button class="figure-button" type="button" data-lightbox data-src="assets/screenshots/setup-step-2.png" data-title="First-run setup — banking, tax and administrator" data-alt="Nexuzy PMS setup showing bank, IFSC, UPI, GST percentages and master admin fields.">
+            <img src="assets/screenshots/setup-step-2.png" alt="Nexuzy PMS setup showing bank, IFSC, UPI, GST percentages and master admin fields." loading="lazy" decoding="async">
+          </button>
+          <figcaption>Step 2 — bank and UPI details, room and restaurant GST, then the master administrator account.</figcaption>
+        </div>
+        <ul>
+          <li><strong>Bank name, account number, IFSC and branch</strong> — printed on invoices for bank transfers.</li>
+          <li><strong>UPI ID and payee name</strong> — shown on bills and confirmations where configured.</li>
+          <li><strong>Room and restaurant GST percentages</strong> — defaults are 12% and 5%; set the rates that apply to your property.</li>
+          <li><strong>Currency symbol</strong> — defaults to ₹, change it if your property uses another currency.</li>
+          <li><strong>Administrator full name, username, email and password</strong> — these credentials open the first admin session and can create staff accounts later.</li>
+        </ul>
+
+        <div class="doc-callout warning">
+          <strong>Protect the administrator account</strong>
+          <p>Use a unique password and store it in a password manager. The admin account can change tax settings, export or restore the database, manage staff and uninstall the app.</p>
+        </div>
+
+        <h3>Finish and sign in</h3>
+        <div class="doc-figure">
+          <button class="figure-button" type="button" data-lightbox data-src="assets/screenshots/setup-complete.png" data-title="Setup complete — property ready" data-alt="Nexuzy PMS setup complete confirmation.">
+            <img src="assets/screenshots/setup-complete.png" alt="Nexuzy PMS setup complete confirmation." loading="lazy" decoding="async">
+          </button>
+          <figcaption>The property is created and the app is ready for its first shift.</figcaption>
+        </div>
+        <p>After setup, the login screen appears. Sign in with the master administrator account. The dashboard starts with zero dummy bookings, so you can add real rooms, staff and menu items at your own pace.</p>
+      </section>
+
+      <section class="doc-section" id="sign-in" data-doc-section>
+        <h2><span class="section-icon"><svg class="icon" aria-hidden="true"><use href="#icon-shield"></use></svg></span> Sign in &amp; roles</h2>
+        <p class="doc-lede">The desktop shortcut starts the local server and opens Nexuzy in its own app window. If the app is already running, it reuses the existing server.</p>
+
+        <h3>Signing in</h3>
+        <ol class="steps">
+          <li><strong>Open the Nexuzy PMS shortcut</strong><span>Or open the local URL printed by the launcher, usually <code>http://localhost:5000</code>.</span></li>
+          <li><strong>Enter the username and password</strong><span>Use the administrator credentials created during setup, or a staff account created in Settings.</span></li>
+          <li><strong>Check the header</strong><span>The property name, business date, system status and signed-in user show at the top of every screen.</span></li>
+          <li><strong>Sign out when leaving the desk</strong><span>Use the Sign Out button in the top-right corner, particularly on shared or LAN devices.</span></li>
+        </ol>
+
+        <h3>Roles at a glance</h3>
+        <div class="doc-table-wrap">
+          <table class="doc-table">
+            <thead><tr><th>Role</th><th>Typical access</th></tr></thead>
+            <tbody>
+              <tr><td>Administrator</td><td>Everything: property settings, staff, backups, restore, LAN, updates and uninstall.</td></tr>
+              <tr><td>General manager</td><td>Day-to-day operations, reporting and most management screens.</td></tr>
+              <tr><td>Front desk</td><td>Reservations, arrivals, in-house stays, folios and payments.</td></tr>
+              <tr><td>Cashier</td><td>Payments, folios and cashier shift operations.</td></tr>
+              <tr><td>Captain / waiter</td><td>Restaurant tables, orders and service flow.</td></tr>
+              <tr><td>Kitchen</td><td>Kitchen display and order preparation status.</td></tr>
+              <tr><td>Housekeeping / maintenance</td><td>Room status, housekeeping and maintenance actions.</td></tr>
+              <tr><td>Inventory</td><td>Stock and store operations.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="doc-callout">
+          <strong>LAN mode is opt-in</strong>
+          <p>Remote devices cannot reach the server until an administrator enables LAN mode in Settings → Local Network. Each staff member should use their own account so sessions can be revoked individually.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="dashboard" data-doc-section>
+        <h2><span class="section-icon"><svg class="icon" aria-hidden="true"><use href="#icon-chart"></use></svg></span> Dashboard</h2>
+        <p class="doc-lede">The dashboard is the shift’s shared answer to “what is happening right now?” It combines room occupancy, arrivals, restaurant activity, collections and the net position.</p>
+        <div class="doc-figure">
+          <button class="figure-button" type="button" data-lightbox data-src="assets/screenshots/dashboard.png" data-title="Operations dashboard" data-alt="Nexuzy PMS dashboard with occupancy, available rooms, in-house guests, arrivals, collections and live room rack.">
+            <img src="assets/screenshots/dashboard.png" alt="Nexuzy PMS dashboard with occupancy, available rooms, in-house guests, arrivals, collections and live room rack." loading="lazy" decoding="async">
+          </button>
+          <figcaption>Dashboard — occupancy, guest counts, today’s money and the live room rack at a glance.</figcaption>
+        </div>
+
+        <h3>Reading the cards</h3>
+        <ul>
+          <li><strong>Occupancy rate</strong> — occupied rooms against room inventory, with the count underneath.</li>
+          <li><strong>Available rooms</strong> — sellable rooms now, including a clean-ready count.</li>
+          <li><strong>In-house guests</strong> — active checked-in stays, not bookings.</li>
+          <li><strong>Today’s arrivals</strong> — expected arrivals for the current business date.</li>
+          <li><strong>Restaurant orders</strong> — live orders and occupied tables.</li>
+          <li><strong>Today’s collections, expenses and net</strong> — cash/card/UPI receipts, recorded operating costs and the difference.</li>
+        </ul>
+
+        <h3>The room rack</h3>
+        <p>The colour key is deliberate: <strong>green</strong> is available, <strong>violet</strong> is occupied, <strong>amber</strong> is dirty and <strong>red</strong> is out of order. Click a room for its quick stay detail, folio or housekeeping action.</p>
+
+        <h3>Start-of-shift routine</h3>
+        <ul class="checklist">
+          <li>Confirm the business date</li>
+          <li>Review arrivals and departures</li>
+          <li>Check dirty and out-of-order rooms</li>
+          <li>Review open folio balances</li>
+          <li>Check today’s collections</li>
+          <li>Clear any unread update banner</li>
+        </ul>
+      </section>
+
+      <section class="doc-section" id="front-desk" data-doc-section>
+        <h2><span class="section-icon"><svg class="icon" aria-hidden="true"><use href="#icon-bed"></use></svg></span> Front desk</h2>
+        <p class="doc-lede">Front Desk &amp; In-House Stays is the operational heart of the hotel: who is in, who is arriving, what they owe and what happens next.</p>
+        <div class="doc-figure">
+          <button class="figure-button" type="button" data-lightbox data-src="assets/screenshots/front-desk.png" data-title="Front desk &amp; in-house stays" data-alt="Nexuzy PMS front desk with occupied stays, expected arrivals, deposit and check-in action.">
+            <img src="assets/screenshots/front-desk.png" alt="Nexuzy PMS front desk with occupied stays, expected arrivals, deposit and check-in action." loading="lazy" decoding="async">
+          </button>
+          <figcaption>Front desk — active stays and today’s expected arrivals, with a direct check-in action.</figcaption>
+        </div>
+
+        <h3>Check in an arrival</h3>
+        <ol class="steps">
+          <li><strong>Find the booking</strong><span>Use the arrival row or search by guest name, room or stay reference.</span></li>
+          <li><strong>Assign a room</strong><span>Choose a ready room of the booked type. The deposit paid is visible before check-in.</span></li>
+          <li><strong>Confirm the guest</strong><span>Check phone, dates and rate, then use the Check In action.</span></li>
+          <li><strong>Open the folio</strong><span>Room charges and any restaurant postings continue on the guest’s folio.</span></li>
+        </ol>
+
+        <h3>Walk-ins, moves and departures</h3>
+        <ul>
+          <li><strong>Walk-In Immediate Check-In</strong> creates a stay without a prior booking; capture the guest and payment details.</li>
+          <li><strong>Room moves</strong> keep the same stay and folio, so the guest’s history stays intact.</li>
+          <li><strong>Departures</strong> should be settled before checkout. Review the folio balance and generate the invoice from the folio.</li>
+          <li><strong>Extensions</strong> change the expected departure and recalculate the stay; use the booking change flow when the rate or dates change.</li>
+        </ul>
+
+        <div class="doc-callout">
+          <strong>Search before creating</strong>
+          <p>A quick search can prevent a duplicate guest or a second room assignment. If a guest has stayed before, keep the same record where possible.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="reservations" data-doc-section>
+        <h2><span class="section-icon"><svg class="icon" aria-hidden="true"><use href="#icon-calendar"></use></svg></span> Reservations</h2>
+        <p class="doc-lede">Reservations protect future inventory. Nexuzy checks room availability, keeps confirmation documents and carries the booking into the front desk on arrival.</p>
+
+        <div class="figure-pair">
+          <figure class="doc-figure">
+            <button class="figure-button" type="button" data-lightbox data-src="assets/screenshots/reservation-app.png" data-title="Reservations workspace" data-alt="Nexuzy PMS reservations workspace with booking list and controls.">
+              <img src="assets/screenshots/reservation-app.png" alt="Nexuzy PMS reservations workspace with booking list and controls." loading="lazy" decoding="async">
+            </button>
+            <figcaption>Reservations workspace — search, filter and open a booking.</figcaption>
+          </figure>
+          <figure class="doc-figure">
+            <button class="figure-button" type="button" data-lightbox data-src="assets/screenshots/reservation-booking.png" data-title="Create a reservation" data-alt="Nexuzy PMS new reservation form with guest, dates, room and payment fields.">
+              <img src="assets/screenshots/reservation-booking.png" alt="Nexuzy PMS new reservation form with guest, dates, room and payment fields." loading="lazy" decoding="async">
+            </button>
+            <figcaption>New reservation — guest, dates, room, rate and deposit.</figcaption>
+          </figure>
+        </div>
+
+        <h3>Create a booking</h3>
+        <ol class="steps">
+          <li><strong>Open New Reservation</strong><span>Start from Reservations, or use the dashboard shortcut.</span></li>
+          <li><strong>Enter the guest and contact</strong><span>Name and phone are the minimum; add email if confirmations are sent.</span></li>
+          <li><strong>Choose the stay dates and room type</strong><span>The booking must have a valid room type and rate. Do not assign a specific room unless the property’s workflow requires it.</span></li>
+          <li><strong>Record the deposit</strong><span>Add an advance if taken; the payment is written to the advance ledger.</span></li>
+          <li><strong>Confirm and issue the document</strong><span>Download or share the booking confirmation. The booking appears in today’s arrivals on the arrival date.</span></li>
+        </ol>
+
+        <h3>Changes, cancellations and groups</h3>
+        <ul>
+          <li><strong>Reschedule or extend</strong> — update dates and review the rate difference before confirming.</li>
+          <li><strong>Cancel</strong> — record the reason and any refund; the audit trail keeps the original booking.</li>
+          <li><strong>Group bookings</strong> — use Group Bookings for staggered groups where different rooms arrive and depart on different dates under one master booking.</li>
+          <li><strong>Confirmations</strong> — booking documents can be downloaded as PDF and shared to WhatsApp.</li>
+        </ul>
+
+        <div class="doc-callout warning">
+          <strong>Double-booking guard</strong>
+          <p>Do not manually create a second overlapping reservation for the same room. If the system blocks a date, review the existing booking and use reschedule or room move instead.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="rooms" data-doc-section>
+        <h2><span class="section-icon"><svg class="icon" aria-hidden="true"><use href="#icon-bed"></use></svg></span> Rooms &amp; housekeeping</h2>
+        <p class="doc-lede">Room types define what you sell; room inventory defines what is physically available. Housekeeping status tells the front desk what can be sold right now.</p>
+        <div class="doc-figure">
+          <button class="figure-button" type="button" data-lightbox data-src="assets/screenshots/rooms-and-rates.png" data-title="Manage rooms, types and rates" data-alt="Nexuzy PMS room type management with base rate and occupancy fields.">
+            <img src="assets/screenshots/rooms-and-rates.png" alt="Nexuzy PMS room type management with base rate and occupancy fields." loading="lazy" decoding="async">
+          </button>
+          <figcaption>Manage Rooms &amp; Types — set the room type, base rate, occupancy and tax rules.</figcaption>
+        </div>
+
+        <h3>Create a room type</h3>
+        <ol class="steps">
+          <li><strong>Open Rooms &amp; HK → Manage Rooms &amp; Types</strong><span>Create the category guests will book, such as Standard or Deluxe Suite.</span></li>
+          <li><strong>Set the code, base rate and occupancy</strong><span>The base rate is the starting nightly price; extra adult charges can be configured separately.</span></li>
+          <li><strong>Add room inventory</strong><span>Create the physical rooms and assign each one to a room type, floor or building.</span></li>
+          <li><strong>Review tax</strong><span>Room GST is applied to room charges; confirm the rate used on your invoices.</span></li>
+        </ol>
+
+        <h3>Housekeeping status</h3>
+        <div class="doc-table-wrap">
+          <table class="doc-table">
+            <thead><tr><th>Status</th><th>Meaning</th><th>Front desk action</th></tr></thead>
+            <tbody>
+              <tr><td>Available</td><td>Clean and ready to sell.</td><td>Can assign to an arrival or walk-in.</td></tr>
+              <tr><td>Occupied</td><td>A guest is currently in-house.</td><td>Do not reassign; use a room move if needed.</td></tr>
+              <tr><td>Dirty</td><td>Departed or needs servicing.</td><td>Ask housekeeping to clean before selling.</td></tr>
+              <tr><td>Out of order</td><td>Physically unavailable.</td><td>Remove from sale and note the reason.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Keep the room rack current throughout the shift. A clean room that is still marked dirty costs a sale; an occupied room marked available creates a double-booking.</p>
+      </section>
+
+      <section class="doc-section" id="menu" data-doc-section>
+        <h2><span class="section-icon"><svg class="icon" aria-hidden="true"><use href="#icon-fork"></use></svg></span> Restaurant menu</h2>
+        <p class="doc-lede">The POS is only as good as its menu. Set categories, dishes, prices, tax and preparation station once; the order screen and kitchen display use them everywhere.</p>
+        <div class="doc-figure">
+          <button class="figure-button" type="button" data-lightbox data-src="assets/screenshots/restaurant-menu.png" data-title="Restaurant menu management" data-alt="Nexuzy PMS menu manager with dish, price, category, station and availability fields.">
+            <img src="assets/screenshots/restaurant-menu.png" alt="Nexuzy PMS menu manager with dish, price, category, station and availability fields." loading="lazy" decoding="async">
+          </button>
+          <figcaption>Manage Menu — categories, dish names, prices, GST, station, food type and availability.</figcaption>
+        </div>
+
+        <h3>Menu setup</h3>
+        <ol class="steps">
+          <li><strong>Create categories</strong><span>Use groups your team recognises: Food &amp; Dining, Beverages, Breakfast, Bar, Bakery.</span></li>
+          <li><strong>Add dishes</strong><span>Set the display name, selling price and the tax rate that applies.</span></li>
+          <li><strong>Choose the station</strong><span>Kitchen, bar or bakery routing determines where the kitchen display shows the item.</span></li>
+          <li><strong>Mark veg / non-veg and availability</strong><span>Hide sold-out items instead of deleting them; history and reports remain intact.</span></li>
+        </ol>
+
+        <div class="doc-callout">
+          <strong>Change prices with care</strong>
+          <p>A menu price change affects new orders. Existing orders keep the price captured when they were created, so always review open bills before a price update.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="table-bookings" data-doc-section>
+        <h2><span class="section-icon"><svg class="icon" aria-hidden="true"><use href="#icon-calendar"></use></svg></span> Table bookings &amp; advances</h2>
+        <p class="doc-lede">Take a restaurant reservation with an advance, reserve a table and issue a receipt before the guest arrives. The booking is confirmed as soon as the advance is recorded.</p>
+
+        <div class="figure-pair">
+          <figure class="doc-figure">
+            <button class="figure-button" type="button" data-lightbox data-src="assets/screenshots/restaurant-tables.png" data-title="Advance table booking" data-alt="Nexuzy PMS advance table booking with guest, date, time, table, guests and payment fields.">
+              <img src="assets/screenshots/restaurant-tables.png" alt="Nexuzy PMS advance table booking with guest, date, time, table, guests and payment fields." loading="lazy" decoding="async">
+            </button>
+            <figcaption>Advance Table Booking — guest, slot, table, guest count and deposit.</figcaption>
+          </figure>
+          <figure class="doc-figure">
+            <button class="figure-button" type="button" data-lightbox data-src="assets/screenshots/advance-booking-bill.png" data-title="Advance booking receipt" data-alt="Printable advance table booking receipt from Nexuzy PMS.">
+              <img src="assets/screenshots/advance-booking-bill.png" alt="Printable advance table booking receipt from Nexuzy PMS." loading="lazy" decoding="async">
+            </button>
+            <figcaption>Advance receipt — printable confirmation for the guest.</figcaption>
+          </figure>
+        </div>
+
+        <h3>Create a table booking</h3>
+        <ol class="steps">
+          <li><strong>Enter guest and phone</strong><span>Use a reachable phone number so the team can confirm or adjust the booking.</span></li>
+          <li><strong>Choose date, time and guests</strong><span>Pick a table if one is available, or leave it for the floor team to assign.</span></li>
+          <li><strong>Take the advance</strong><span>Select cash, UPI, card, bank transfer or net banking and record the reference.</span></li>
+          <li><strong>Confirm and share</strong><span>The booking is confirmed automatically; download or share the receipt on WhatsApp.</span></li>
+        </ol>
+
+        <h3>During service</h3>
+        <ul>
+          <li><strong>Seat</strong> the party when they arrive and open a POS order for the table.</li>
+          <li><strong>Complete</strong> the booking after service; the table returns to the floor plan.</li>
+          <li><strong>Cancel</strong> with a reason. Refunds should be approved and recorded, not handled outside the system.</li>
+        </ul>
+      </section>
+
+      <section class="doc-section" id="pos" data-doc-section>
+        <h2><span class="section-icon"><svg class="icon" aria-hidden="true"><use href="#icon-fork"></use></svg></span> Restaurant POS &amp; kitchen display</h2>
+        <p class="doc-lede">Run dine-in, takeaway and room service from the same menu. Send food to the kitchen, settle a table separately, or post the charge to a guest’s folio.</p>
+        <div class="doc-figure">
+          <button class="figure-button" type="button" data-lightbox data-src="assets/screenshots/restaurant-order.png" data-title="Restaurant POS &amp; KDS" data-alt="Nexuzy PMS restaurant POS with table floor, menu, order cart and kitchen display controls.">
+            <img src="assets/screenshots/restaurant-order.png" alt="Nexuzy PMS restaurant POS with table floor, menu, order cart and kitchen display controls." loading="lazy" decoding="async">
+          </button>
+          <figcaption>Restaurant, Bar &amp; Room Service POS — table floor, menu, order and KOT controls.</figcaption>
+        </div>
+
+        <h3>Take an order</h3>
+        <ol class="steps">
+          <li><strong>Choose the order type</strong><span>Dine-in, takeaway, room service or another configured type.</span></li>
+          <li><strong>Select the table or room</strong><span>For room service, choose the in-house room so the charge can be posted to the right folio.</span></li>
+          <li><strong>Add dishes and quantities</strong><span>Review notes and modifiers before sending the order to the kitchen.</span></li>
+          <li><strong>Send the KOT</strong><span>The kitchen display receives the items and their station; the floor team tracks preparation.</span></li>
+          <li><strong>Settle or post</strong><span>Take payment for a restaurant bill, or use Post to Room to add the charge to the guest’s folio.</span></li>
+        </ol>
+
+        <div class="doc-callout">
+          <strong>Restaurant tax</strong>
+          <p>The restaurant GST rate is configured during setup (5% by default). Menu items can carry their own rate where the property needs a different treatment. Always review a bill before handing it to the guest.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="folios" data-doc-section>
+        <h2><span class="section-icon"><svg class="icon" aria-hidden="true"><use href="#icon-receipt"></use></svg></span> Guest folios</h2>
+        <p class="doc-lede">A folio is the single financial story of a stay: room charges, restaurant postings, payments, deposits and the balance still due.</p>
+        <div class="doc-figure">
+          <button class="figure-button" type="button" data-lightbox data-src="assets/screenshots/billing-gst-folio.png" data-title="Guest folio &amp; GST billing" data-alt="Nexuzy PMS guest folio with itemised charges, payments, GST and net balance.">
+            <img src="assets/screenshots/billing-gst-folio.png" alt="Nexuzy PMS guest folio with itemised charges, payments, GST and net balance." loading="lazy" decoding="async">
+          </button>
+          <figcaption>Guest Folios &amp; India GST Billing — itemised charges, recorded payments and net balance.</figcaption>
+        </div>
+
+        <h3>Work the folio</h3>
+        <ol class="steps">
+          <li><strong>Select the room or guest</strong><span>Open the folio from Billing &amp; GST Folios or from the in-house stay.</span></li>
+          <li><strong>Post a charge</strong><span>Add room rent, restaurant orders or a manual charge with the correct department and tax.</span></li>
+          <li><strong>Record a payment</strong><span>Capture cash, card, UPI or another mode, with a reference where applicable.</span></li>
+          <li><strong>Review the balance</strong><span>Total charges minus recorded payments and deposits must be zero before final checkout.</span></li>
+          <li><strong>Generate the tax invoice</strong><span>Issue the final document after the folio is settled and the bill is confirmed.</span></li>
+        </ol>
+
+        <div class="doc-callout warning">
+          <strong>Do not close an open balance</strong>
+          <p>If the guest is paying later, leave the folio open and record the arrangement. Closing without payment distorts collections and the day’s reports.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="invoices" data-doc-section>
+        <h2><span class="section-icon"><svg class="icon" aria-hidden="true"><use href="#icon-receipt"></use></svg></span> GST invoices</h2>
+        <p class="doc-lede">Nexuzy produces printable A4 tax invoices with the property’s GSTIN, HSN/SAC codes, tax split, bank/UPI details and the hotel logo.</p>
+        <div class="doc-figure">
+          <button class="figure-button" type="button" data-lightbox data-src="assets/screenshots/gst-invoice.png" data-title="India GST tax invoice" data-alt="Nexuzy PMS printable GST tax invoice with tax breakdown.">
+            <img src="assets/screenshots/gst-invoice.png" alt="Nexuzy PMS printable GST tax invoice with tax breakdown." loading="lazy" decoding="async">
+          </button>
+          <figcaption>A generated GST tax invoice — business details, guest, HSN/SAC, tax split and totals.</figcaption>
+        </div>
+
+        <h3>Before issuing a tax invoice</h3>
+        <ul class="checklist">
+          <li>Property legal name and address are correct</li>
+          <li>GSTIN is entered in Settings</li>
+          <li>Room and restaurant tax rates are correct</li>
+          <li>Folio charges and payments reconcile</li>
+          <li>Invoice number sequence is uninterrupted</li>
+          <li>Guest name and address are complete</li>
+        </ul>
+
+        <h3>Download, print or share</h3>
+        <ol class="steps">
+          <li><strong>Generate from the settled folio</strong><span>The final invoice is locked to the folio so it cannot silently change after issue.</span></li>
+          <li><strong>Download the PDF</strong><span>The A4 document is generated server-side and carries the hotel branding and Nexuzy footer.</span></li>
+          <li><strong>Share on WhatsApp</strong><span>Download the PDF first, then attach it to the pre-filled WhatsApp message.</span></li>
+          <li><strong>Reprint when needed</strong><span>Open the folio or invoice history to retrieve the issued document.</span></li>
+        </ol>
+
+        <div class="doc-callout">
+          <strong>Accounting note</strong>
+          <p>Tax rules depend on the property’s registration and jurisdiction. Confirm the configured rates and invoice format with your accountant before the first live tax invoice.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="expenses" data-doc-section>
+        <h2><span class="section-icon"><svg class="icon" aria-hidden="true"><use href="#icon-database"></use></svg></span> Hotel expenses</h2>
+        <p class="doc-lede">Record operating costs alongside revenue so the dashboard’s net figure and the profit &amp; loss report reflect the real property, not just sales.</p>
+        <div class="doc-figure">
+          <button class="figure-button" type="button" data-lightbox data-src="assets/screenshots/expenses.png" data-title="Hotel expense ledger" data-alt="Nexuzy PMS expense ledger with category, vendor and payment mode.">
+            <img src="assets/screenshots/expenses.png" alt="Nexuzy PMS expense ledger with category, vendor and payment mode." loading="lazy" decoding="async">
+          </button>
+          <figcaption>Hotel Expenses — record salaries, groceries, utilities, maintenance and other operating costs.</figcaption>
+        </div>
+
+        <h3>Record an expense</h3>
+        <ol class="steps">
+          <li><strong>Choose a category</strong><span>Use consistent categories such as salaries, groceries, utilities, maintenance or housekeeping.</span></li>
+          <li><strong>Add vendor and amount</strong><span>Capture the date, payment mode and a reference or invoice number.</span></li>
+          <li><strong>Save for the period</strong><span>The expense appears in the day’s dashboard and the selected reporting period.</span></li>
+          <li><strong>Void a mistake</strong><span>Void rather than delete so the audit trail preserves the correction.</span></li>
+        </ol>
+        <p>At month end, export the relevant reports and attach supporting invoices to your accounting records. Nexuzy keeps the operational ledger; your accountant remains the source of statutory filing.</p>
+      </section>
+
+      <section class="doc-section" id="reports" data-doc-section>
+        <h2><span class="section-icon"><svg class="icon" aria-hidden="true"><use href="#icon-chart"></use></svg></span> Reports &amp; audit</h2>
+        <p class="doc-lede">The reports workspace turns the shift into decisions: revenue by department, GST collected, expenses, profit and a searchable audit trail.</p>
+        <div class="doc-figure">
+          <button class="figure-button" type="button" data-lightbox data-src="assets/screenshots/profit-loss-audit.png" data-title="Profit &amp; loss, GST and audit trail" data-alt="Nexuzy PMS profit and loss report with department revenue, GST breakdown, expenses and audit log.">
+            <img src="assets/screenshots/profit-loss-audit.png" alt="Nexuzy PMS profit and loss report with department revenue, GST breakdown, expenses and audit log." loading="lazy" decoding="async">
+          </button>
+          <figcaption>Reports &amp; Audit — choose a date range and review P&amp;L, department revenue, GST and the immutable log.</figcaption>
+        </div>
+
+        <h3>What to review</h3>
+        <div class="doc-table-wrap">
+          <table class="doc-table">
+            <thead><tr><th>Report</th><th>Question it answers</th></tr></thead>
+            <tbody>
+              <tr><td>Profit &amp; Loss</td><td>What did we earn after tax, what did we spend, and what is left?</td></tr>
+              <tr><td>Revenue by Department</td><td>Which areas — rooms, restaurant, service — are carrying the property?</td></tr>
+              <tr><td>GST Collection Breakdown</td><td>How much tax was collected at each rate, and what is the taxable value?</td></tr>
+              <tr><td>Expenses by Category</td><td>Where is the operating money going?</td></tr>
+              <tr><td>System Audit Trail</td><td>Who created, changed, voided or generated each financial document?</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>A simple reporting rhythm</h3>
+        <ul>
+          <li><strong>Every shift</strong> — check collections, open folios and any failed or voided actions.</li>
+          <li><strong>Every day</strong> — close the business date, review the day’s net and back up the database.</li>
+          <li><strong>Every week</strong> — compare revenue by department against expenses and occupancy.</li>
+          <li><strong>Every month</strong> — export the P&amp;L and GST summary for accounts, then store the backup off the hotel PC.</li>
+        </ul>
+      </section>
+
+      <section class="doc-section" id="settings" data-doc-section>
+        <h2><span class="section-icon"><svg class="icon" aria-hidden="true"><use href="#icon-shield"></use></svg></span> Settings &amp; backup</h2>
+        <p class="doc-lede">Settings is the administrator’s control room: property identity, staff access, backups, email, LAN, desktop shortcut, updates and uninstall.</p>
+        <div class="doc-figure">
+          <button class="figure-button" type="button" data-lightbox data-src="assets/screenshots/settings.png" data-title="Settings, backups and integrations" data-alt="Nexuzy PMS settings screen with portable backup, Google Drive, SMTP and backup controls.">
+            <img src="assets/screenshots/settings.png" alt="Nexuzy PMS settings screen with portable backup, Google Drive, SMTP and backup controls." loading="lazy" decoding="async">
+          </button>
+          <figcaption>System Settings, Backups &amp; Integrations — portable backup, cloud sync, SMTP and system configuration.</figcaption>
+        </div>
+
+        <h3>The safe backup routine</h3>
+        <ol class="steps">
+          <li><strong>Open Settings &amp; Backup</strong><span>Go to the Portable .nxp Package section.</span></li>
+          <li><strong>Export &amp; Download .nxp Package</strong><span>Nexuzy creates a verified, checksum-protected snapshot of the database.</span></li>
+          <li><strong>Store a copy off the hotel PC</strong><span>Use a password-protected drive, a trusted cloud folder or the Google Drive integration.</span></li>
+          <li><strong>Test the restore on a spare machine</strong><span>Never wait until an emergency to discover that the backup routine is broken.</span></li>
+        </ol>
+
+        <div class="doc-callout warning">
+          <strong>Restore replaces operational data</strong>
+          <p>Restoring a backup is a destructive recovery action for the current database. Export a fresh backup first, and restore only during a planned maintenance window.</p>
+        </div>
+
+        <h3>Other settings</h3>
+        <ul>
+          <li><strong>Property details</strong> — legal name, address, GSTIN, bank, UPI, tax rates, logo and contact details.</li>
+          <li><strong>Staff users &amp; access</strong> — add staff, assign roles, deactivate leavers and reset passwords.</li>
+          <li><strong>Google Drive</strong> — connect a folder ID and run a manual sync; keep the backup routine under review.</li>
+          <li><strong>SMTP mail</strong> — configure the hotel mailbox and send a test email before relying on automatic mail.</li>
+          <li><strong>Desktop shortcut</strong> — recreate the one-click launcher if the original is lost.</li>
+          <li><strong>About, Support &amp; Uninstall</strong> — version, developer, donation link, update controls and the guarded uninstall action.</li>
+        </ul>
+      </section>
+
+      <section class="doc-section" id="lan" data-doc-section>
+        <h2><span class="section-icon"><svg class="icon" aria-hidden="true"><use href="#icon-wifi"></use></svg></span> LAN mode</h2>
+        <p class="doc-lede">LAN mode lets staff phones, tablets and a second desk use the host computer’s live database over the private Wi-Fi. It is off by default and must be enabled by an administrator.</p>
+
+        <h3>Enable it</h3>
+        <ol class="steps">
+          <li><strong>Open Settings → Local Network</strong><span>Enable LAN access and choose the port if the default needs changing.</span></li>
+          <li><strong>Connect devices to the same private network</strong><span>Use the host’s LAN URL or the provided QR code. Do not use guest Wi-Fi isolation.</span></li>
+          <li><strong>Allow the firewall rule</strong><span>On Windows, run <code>enable-lan-firewall.bat</code> once as Administrator if phones cannot connect.</span></li>
+          <li><strong>Create individual staff accounts</strong><span>Each person signs in separately so a device session can be revoked without changing everyone’s password.</span></li>
+        </ol>
+
+        <div class="doc-callout warning">
+          <strong>Private network only</strong>
+          <p>LAN mode uses plain HTTP for local convenience. Use it only on a trusted private network, never forward the port from the router, and disable LAN access when it is not needed.</p>
+        </div>
+
+        <h3>If a device cannot connect</h3>
+        <ul>
+          <li>Confirm the host and device are on the same Wi-Fi or wired LAN.</li>
+          <li>Use the exact URL shown in the app, including the port (for example <code>http://192.168.0.106:5000</code>).</li>
+          <li>Check that the host firewall allows the port on private networks.</li>
+          <li>Disable guest-network isolation or “AP isolation” on the router.</li>
+          <li>Review active sessions in Settings and revoke any device that should no longer have access.</li>
+        </ul>
+      </section>
+
+      <section class="doc-section" id="updates" data-doc-section>
+        <h2><span class="section-icon"><svg class="icon" aria-hidden="true"><use href="#icon-spark"></use></svg></span> Updates &amp; uninstall</h2>
+        <p class="doc-lede">Installed builds check GitHub for a newer release once a day. Administrators can check immediately from Settings → About, Support &amp; Uninstall.</p>
+
+        <h3>Update safely</h3>
+        <ol class="steps">
+          <li><strong>Export a fresh .nxp backup</strong><span>Do this before any update, even a small one.</span></li>
+          <li><strong>Read the release note</strong><span>Confirm the version and any migration or configuration steps.</span></li>
+          <li><strong>Download the installer for this platform</strong><span>When published, Nexuzy verifies the SHA-256 checksum before starting the update.</span></li>
+          <li><strong>Run the installer</strong><span>Upgrades preserve the data folder. Reopen the app and sign in after the update.</span></li>
+        </ol>
+
+        <h3>Uninstall</h3>
+        <p>Uninstall is administrator-only and requires typing <strong>UNINSTALL</strong> in the confirmation dialog. It removes the application; the hotel database, uploaded logo and backups remain in the data folder.</p>
+        <ul>
+          <li><strong>Windows data</strong> — <code>%LOCALAPPDATA%\Programs\Nexuzy PMS\data</code></li>
+          <li><strong>Linux data</strong> — the installed app’s <code>data/</code> folder</li>
+          <li><strong>macOS data</strong> — <code>~/Library/Application Support/Nexuzy PMS</code></li>
+        </ul>
+        <div class="doc-callout warning">
+          <strong>Uninstall is not a backup</strong>
+          <p>Take a portable backup and copy it off the computer before uninstalling. If the computer itself is being retired, the data folder must be copied first.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="troubleshooting" data-doc-section>
+        <h2><span class="section-icon"><svg class="icon" aria-hidden="true"><use href="#icon-shield"></use></svg></span> Troubleshooting</h2>
+        <p class="doc-lede">Start with the symptom, then check the simplest local cause. Most issues are port conflicts, stale browser pages, firewall rules or a backup that needs restoring.</p>
+
+        <div class="doc-table-wrap">
+          <table class="doc-table">
+            <thead><tr><th>Symptom</th><th>What to check</th></tr></thead>
+            <tbody>
+              <tr><td>App does not open</td><td>Check <code>data/launcher.log</code> in the install folder. Confirm the port is free and the browser/runtime is present. Try the Start Menu shortcut.</td></tr>
+              <tr><td>“Port 5000 is already in use”</td><td>This is handled automatically: Nexuzy tries 5001–5009. Read <code>data/runtime.json</code> for the actual port. Stop only the old PMS process if you intended to replace it.</td></tr>
+              <tr><td>Endpoint not found / old About panel</td><td>The browser may be connected to an older server process. Restart the PMS server, then hard-refresh with Ctrl+F5.</td></tr>
+              <tr><td>Login does not work</td><td>Check Caps Lock and the username. Ask an administrator to reset the staff password in Settings. If the only admin password is lost, restore a backup or contact support.</td></tr>
+              <tr><td>Phones cannot reach the desk</td><td>Enable LAN mode, use the exact LAN URL, allow the firewall rule and disable router client isolation.</td></tr>
+              <tr><td>PDF does not download</td><td>Allow downloads/pop-ups for the local URL and try again. The PDF is generated server-side from the settled folio.</td></tr>
+              <tr><td>Data looks wrong after a test</td><td>Do not keep editing. Export the current state, then restore the last known-good <code>.nxp</code> backup.</td></tr>
+              <tr><td>Update banner is quiet</td><td>Installations check once a day; administrators can use Check for updates in About. Offline hotels will simply see no newer release.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Useful files</h3>
+        <ul>
+          <li><code>data/nexuzy.db</code> — the live SQLite database. Do not edit it by hand.</li>
+          <li><code>data/runtime.json</code> — the port, local URL, LAN URL and process ID of the running server.</li>
+          <li><code>data/launcher.log</code> — startup, port fallback and browser-window messages.</li>
+          <li><code>backups/</code> — exported <code>.nxp</code> packages and operational backups.</li>
+        </ul>
+
+        <div class="doc-callout">
+          <strong>Still stuck?</strong>
+          <p>Include the app version, operating system, the exact error text and the relevant log lines when contacting support. Never send a live database or administrator password in a public issue.</p>
+        </div>
+      </section>
+
+      <footer class="docs-footer">
+        <span>Nexuzy PMS Field Guide · v1.2.0 · © <span data-year>2026</span> Nexuzy Lab</span>
+        <span>Found a gap? <a href="https://github.com/david0154/Nexuzy-PMS/issues" target="_blank" rel="noopener">Open an issue</a> · <a href="mailto:david@nexuzy.in">david@nexuzy.in</a></span>
+        <a class="back-to-top" href="#welcome"><svg class="icon" aria-hidden="true"><use href="#icon-arrow-up"></use></svg> Back to top</a>
+      </footer>
+    </main>
+  </div>
+
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="lightbox-title">
+    <button class="lightbox-backdrop" type="button" data-lightbox-backdrop aria-label="Close image viewer"></button>
+    <div class="lightbox-dialog">
+      <div class="lightbox-top">
+        <div class="lightbox-caption">
+          <span class="lightbox-title" id="lightbox-title" data-lightbox-title>Screenshot</span>
+          <span data-lightbox-counter>1 / 17</span>
+        </div>
+        <div class="lightbox-actions">
+          <button class="lightbox-btn" type="button" data-lightbox-prev aria-label="Previous screenshot"><svg class="icon" aria-hidden="true"><use href="#icon-chevron-left"></use></svg></button>
+          <button class="lightbox-btn" type="button" data-lightbox-next aria-label="Next screenshot"><svg class="icon" aria-hidden="true"><use href="#icon-chevron-right"></use></svg></button>
+          <button class="lightbox-btn" type="button" data-lightbox-close aria-label="Close image viewer"><svg class="icon" aria-hidden="true"><use href="#icon-x"></use></svg></button>
+        </div>
+      </div>
+      <div class="lightbox-image-wrap">
+        <img data-lightbox-image alt="" src="assets/screenshots/dashboard.png">
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/docs.js" defer></script>
+</body>
+</html>

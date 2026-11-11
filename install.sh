@@ -18,13 +18,16 @@ if ! command -v node >/dev/null 2>&1; then
     exit 1
 fi
 
-echo "[1/3] Node.js version detected: $(node -v)"
-echo "[2/3] Installing application dependencies..."
+echo "[1/4] Node.js version detected: $(node -v)"
+echo "[2/4] Installing application dependencies..."
 npm install --no-audit
 
-echo "[3/3] Preparing data and backup storage..."
+echo "[3/4] Preparing data and backup storage..."
 mkdir -p data backups
 chmod +x start.sh 2>/dev/null || true
+
+echo "[4/4] Creating a desktop shortcut..."
+node scripts/create-shortcut.js || echo "[WARN] Shortcut could not be created. Run 'npm run shortcut' later; the PMS still starts with ./start.sh."
 
 echo ""
 echo "========================================================"

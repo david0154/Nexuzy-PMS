@@ -1,5 +1,11 @@
 // Nexuzy PMS Comprehensive Test Suite
 // Validates PRD Section 7.7, Section 28, Section 30, and Section 36 Acceptance Criteria
+//
+// Tests reseed the database, so they default to a dedicated test file and never
+// touch the hotel's live database unless DB_PATH is explicitly supplied.
+
+const path = require('path');
+process.env.DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'test-legacy.db');
 
 const assert = require('assert');
 const app = require('../server/app');

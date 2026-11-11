@@ -3,6 +3,7 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
+const { applyMigrations } = require('../config/migrations');
 
 async function runSeed(options = {}) {
   const force = options.force || false;
@@ -22,6 +23,7 @@ async function runSeed(options = {}) {
   const schemaPath = path.join(__dirname, 'schema.sql');
   const schemaSql = fs.readFileSync(schemaPath, 'utf8');
   await db.exec(schemaSql);
+  await applyMigrations();
   console.log('✓ Database schema executed successfully');
 
   // Check if property exists

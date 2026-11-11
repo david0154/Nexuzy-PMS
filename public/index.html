@@ -5,13 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Nexuzy PMS - Property, Restaurant & Operations Management</title>
   <!-- Favicon -->
-  <link rel="icon" type="image/png" href="/favicon.png">
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Google Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="/nexuzy.ico">
+  <link rel="apple-touch-icon" href="/nexuzy.ico">
+  <!-- Tailwind is bundled locally so first-time setup, login and billing work
+       on hotel PCs without an internet connection. -->
+  <script src="/vendor/tailwind.js"></script>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body class="bg-slate-900 text-slate-100 font-sans antialiased min-h-screen flex flex-col selection:bg-indigo-500 selection:text-white">
@@ -24,7 +22,7 @@
       <div class="text-center mb-6">
         <img src="/logo.png" alt="Nexuzy PMS" class="h-20 mx-auto mb-3 object-contain">
         <h1 class="text-2xl font-black text-white tracking-tight">Welcome to Nexuzy PMS</h1>
-        <p class="text-slate-400 text-xs mt-1">First-Time Setup: Configure your hotel, banking, taxes & administrator account</p>
+        <p class="text-slate-400 text-xs mt-1">First-time setup creates the local database, hotel profile, logo, admin login and GST settings</p>
       </div>
 
       <form id="form-setup-wizard" onsubmit="handleFirstTimeSetup(event)" class="space-y-4">
@@ -72,6 +70,16 @@
           <div>
             <label class="input-label">GSTIN / Tax ID (Optional)</label>
             <input type="text" id="setup-gstin" class="input-field" placeholder="e.g. 29AABCN1234F1Z5">
+          </div>
+          <div class="p-3 bg-slate-900/60 border border-slate-700 rounded-xl space-y-2">
+            <label class="input-label">Hotel Logo (Optional)</label>
+            <div class="flex items-center gap-3">
+              <img id="setup-logo-preview" src="/logo.png" alt="Hotel logo preview" class="h-14 w-14 object-contain rounded-lg bg-slate-900 border border-slate-700 p-1">
+              <div class="flex-1">
+                <input type="file" id="setup-logo-input" accept="image/png,image/jpeg,image/webp" onchange="previewSetupLogo(this)" class="block w-full text-xs text-slate-400 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-700 file:text-white hover:file:bg-slate-600">
+                <p class="text-[10px] text-slate-500 mt-1">PNG, JPG or WebP. Large images are resized automatically. Printed on bills and invoices; you can change it later in Settings.</p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -193,7 +201,7 @@
     <!-- Top Header Bar -->
     <header class="bg-slate-900/90 backdrop-blur border-b border-slate-800 sticky top-0 z-40 px-4 lg:px-8 py-2.5 flex items-center justify-between">
       <div class="flex items-center space-x-3">
-        <img src="/logo.png" alt="Nexuzy PMS Logo" class="h-9 w-auto object-contain">
+        <img id="header-logo" src="/logo.png" alt="Nexuzy PMS Logo" class="h-9 w-auto object-contain">
         <div>
           <div class="flex items-center space-x-2">
             <span id="header-prop-name" class="font-bold text-white tracking-tight leading-none text-base">Nexuzy PMS</span>
@@ -254,6 +262,9 @@
       <button onclick="switchTab('cashier')" id="tab-btn-cashier" class="tab-button">
         💵 Cashier Shifts
       </button>
+      <button onclick="switchTab('expenses')" id="tab-btn-expenses" class="tab-button">
+        🧾 Hotel Expenses
+      </button>
       <button onclick="switchTab('inventory')" id="tab-btn-inventory" class="tab-button">
         📦 Inventory
       </button>
@@ -267,6 +278,17 @@
         ⚙️ Settings & Backup
       </button>
     </nav>
+
+    <!-- Update notification -->
+    <div id="update-banner" class="hidden bg-indigo-500/10 border-b border-indigo-500/30 px-4 lg:px-8 py-2 text-xs">
+      <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+        <span id="update-banner-text" class="text-indigo-200"></span>
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="openUpdateSettings()" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold">Review update</button>
+          <button type="button" onclick="dismissUpdateBanner()" class="px-2 py-1 text-slate-400 hover:text-slate-200">Dismiss</button>
+        </div>
+      </div>
+    </div>
 
     <!-- CONTENT CONTAINER -->
     <main class="flex-1 p-4 lg:p-8 max-w-7xl mx-auto w-full">
@@ -301,7 +323,7 @@
         </div>
 
         <!-- Metric Stat Cards Grid -->
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
           <div class="stat-card">
             <div class="text-slate-400 text-xs font-medium">Occupancy Rate</div>
             <div id="stat-occupancy-rate" class="text-2xl font-black text-indigo-400 mt-1">0%</div>
@@ -331,6 +353,16 @@
             <div class="text-slate-400 text-xs font-medium">Today Collections</div>
             <div id="stat-today-collections" class="text-2xl font-black text-emerald-400 mt-1">₹0</div>
             <div class="text-[11px] text-slate-400 mt-1">Cash, Card, UPI</div>
+          </div>
+          <div class="stat-card">
+            <div class="text-slate-400 text-xs font-medium">Expenses Today</div>
+            <div id="stat-expenses-today" class="text-2xl font-black text-rose-400 mt-1">₹0</div>
+            <div class="text-[11px] text-slate-400 mt-1">Hotel operating costs</div>
+          </div>
+          <div class="stat-card">
+            <div class="text-slate-400 text-xs font-medium">Net Today</div>
+            <div id="stat-net-today" class="text-2xl font-black text-emerald-400 mt-1">₹0</div>
+            <div class="text-[11px] text-slate-400 mt-1">Collections − expenses</div>
           </div>
         </div>
 
@@ -488,6 +520,9 @@
             <p class="text-xs text-slate-400">Keep commercial availability separate from cleaning and maintenance readiness</p>
           </div>
           <div class="flex gap-2">
+            <button onclick="openRoomManager()" class="btn-primary">
+              🛠️ Manage Rooms &amp; Types
+            </button>
             <button onclick="openNewMaintenanceModal()" class="btn-secondary">
               🔧 Report Maintenance
             </button>
@@ -519,9 +554,11 @@
             <h2 class="text-lg font-bold text-white">Restaurant, Bar & Room Service POS</h2>
             <p class="text-xs text-slate-400">Independent restaurant billing, 5% GST, KOT generator & "Post to Room" support</p>
           </div>
-          <div class="flex space-x-2">
+          <div class="flex flex-wrap gap-2">
+            <button onclick="openMenuManager()" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold">📋 Manage Menu</button>
             <button onclick="setPosSubTab('pos')" id="pos-btn-pos" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold">POS Order</button>
             <button onclick="setPosSubTab('kds')" id="pos-btn-kds" class="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-semibold">Kitchen KDS Board</button>
+            <button onclick="setPosSubTab('bookings')" id="pos-btn-bookings" class="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-semibold">📅 Advance Bookings</button>
           </div>
         </div>
 
@@ -613,6 +650,59 @@
             <!-- Dynamically populated KDS tickets -->
           </div>
         </div>
+
+        <!-- Advance table bookings -->
+        <div id="subtab-bookings" class="hidden">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+              <h3 class="font-bold text-white text-sm mb-1">📅 Advance Table Booking</h3>
+              <p class="text-[11px] text-slate-400 mb-3">Take an advance, choose the payment mode, then the booking is confirmed automatically.</p>
+              <form id="form-restaurant-booking" onsubmit="handleRestaurantBookingSubmit(event)" class="space-y-3">
+                <div class="grid grid-cols-2 gap-2">
+                  <div><label class="input-label">Guest Name *</label><input type="text" id="rb-guest-name" required class="input-field"></div>
+                  <div><label class="input-label">Phone *</label><input type="tel" id="rb-phone" required class="input-field" placeholder="+91 98765 43210"></div>
+                </div>
+                <div class="grid grid-cols-3 gap-2">
+                  <div><label class="input-label">Date *</label><input type="date" id="rb-date" required class="input-field"></div>
+                  <div><label class="input-label">Time *</label><input type="time" id="rb-time" required value="19:30" class="input-field"></div>
+                  <div><label class="input-label">Guests *</label><input type="number" id="rb-count" min="1" max="100" value="2" required class="input-field"></div>
+                </div>
+                <div>
+                  <label class="input-label">Table (optional)</label>
+                  <select id="rb-table" class="input-field"><option value="">No specific table</option></select>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div><label class="input-label">Advance Amount (₹) *</label><input type="number" id="rb-advance" min="0" step="0.01" value="0" required class="input-field"></div>
+                  <div>
+                    <label class="input-label">Payment Mode *</label>
+                    <select id="rb-mode" class="input-field">
+                      <option value="cash">Cash</option>
+                      <option value="upi" selected>UPI</option>
+                      <option value="bank_transfer">Bank Transfer</option>
+                      <option value="netbanking">Net Banking</option>
+                      <option value="card">Card</option>
+                    </select>
+                  </div>
+                </div>
+                <div><label class="input-label">Payment Reference</label><input type="text" id="rb-ref" class="input-field" placeholder="UPI / bank reference"></div>
+                <div><label class="input-label">Notes</label><input type="text" id="rb-notes" class="input-field" placeholder="Window table, birthday cake..."></div>
+                <button type="submit" class="btn-primary text-xs w-full">Take Advance &amp; Confirm Booking</button>
+              </form>
+            </div>
+            <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-5">
+              <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <div>
+                  <h3 class="font-bold text-white text-sm">Bookings</h3>
+                  <p id="restaurant-booking-summary" class="text-[11px] text-slate-400">Loading...</p>
+                </div>
+                <button onclick="loadRestaurantBookings()" class="btn-secondary text-xs">Refresh</button>
+              </div>
+              <div id="restaurant-bookings-list" class="space-y-2 text-xs max-h-[60vh] overflow-y-auto">
+                <div class="text-slate-500">Loading bookings...</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- ========================================================= -->
@@ -673,6 +763,101 @@
               <tbody id="tbody-shift-history" class="divide-y divide-slate-800">
               </tbody>
             </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- TAB: HOTEL EXPENSES -->
+      <!-- ========================================================= -->
+      <section id="tab-expenses" class="tab-content hidden">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div>
+            <h2 class="text-lg font-bold text-white">Hotel Expenses &amp; Cash Out</h2>
+            <p class="text-xs text-slate-400">Record salaries, groceries, utilities, maintenance and other operating costs with payment mode and audit trail</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <div class="stat-card"><div class="text-slate-400 text-xs">Total Expenses</div><div id="expense-stat-total" class="text-2xl font-black text-rose-400 mt-1">₹0</div><div class="text-[11px] text-slate-500 mt-1">Selected period</div></div>
+          <div class="stat-card"><div class="text-slate-400 text-xs">Cash Paid</div><div id="expense-stat-cash" class="text-2xl font-black text-emerald-400 mt-1">₹0</div></div>
+          <div class="stat-card"><div class="text-slate-400 text-xs">UPI / Card / Bank</div><div id="expense-stat-digital" class="text-2xl font-black text-sky-400 mt-1">₹0</div></div>
+          <div class="stat-card"><div class="text-slate-400 text-xs">Entries</div><div id="expense-stat-count" class="text-2xl font-black text-indigo-400 mt-1">0</div></div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <h3 class="font-bold text-white text-sm mb-3">Record Expense</h3>
+            <form id="form-expense" onsubmit="handleExpenseSubmit(event)" class="space-y-3">
+              <div class="grid grid-cols-2 gap-2">
+                <div><label class="input-label">Date *</label><input type="date" id="expense-date" required class="input-field"></div>
+                <div>
+                  <label class="input-label">Category *</label>
+                  <select id="expense-category" class="input-field">
+                    <option value="salary">Salary / Wages</option>
+                    <option value="groceries">Kitchen / Groceries</option>
+                    <option value="utilities">Electricity / Water / Gas</option>
+                    <option value="maintenance">Maintenance / Repairs</option>
+                    <option value="housekeeping">Housekeeping Supplies</option>
+                    <option value="laundry">Laundry</option>
+                    <option value="rent">Rent / Lease</option>
+                    <option value="marketing">Marketing</option>
+                    <option value="transport">Transport / Fuel</option>
+                    <option value="licenses">Licenses / Fees</option>
+                    <option value="miscellaneous">Miscellaneous</option>
+                  </select>
+                </div>
+              </div>
+              <div><label class="input-label">Description *</label><input type="text" id="expense-description" required class="input-field" placeholder="e.g. Vegetable purchase"></div>
+              <div class="grid grid-cols-2 gap-2">
+                <div><label class="input-label">Amount (₹) *</label><input type="number" id="expense-amount" min="0.01" step="0.01" required class="input-field"></div>
+                <div><label class="input-label">Tax Included (₹)</label><input type="number" id="expense-tax" min="0" step="0.01" value="0" class="input-field"></div>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="input-label">Payment Mode *</label>
+                  <select id="expense-mode" class="input-field">
+                    <option value="cash">Cash</option>
+                    <option value="upi">UPI</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                    <option value="netbanking">Net Banking</option>
+                    <option value="card">Card</option>
+                    <option value="credit">Credit (Pay Later)</option>
+                  </select>
+                </div>
+                <div><label class="input-label">Vendor / Paid To</label><input type="text" id="expense-vendor" class="input-field"></div>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div><label class="input-label">Paid By</label><input type="text" id="expense-paid-by" class="input-field" placeholder="Staff name"></div>
+                <div><label class="input-label">Reference / Bill No.</label><input type="text" id="expense-reference" class="input-field"></div>
+              </div>
+              <div><label class="input-label">Notes</label><input type="text" id="expense-notes" class="input-field"></div>
+              <button type="submit" class="btn-primary text-xs w-full">Save Expense</button>
+            </form>
+          </div>
+
+          <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+            <div class="p-4 border-b border-slate-800 flex flex-wrap items-end gap-2">
+              <div><label class="input-label">From</label><input type="date" id="expense-filter-from" class="input-field"></div>
+              <div><label class="input-label">To</label><input type="date" id="expense-filter-to" class="input-field"></div>
+              <button onclick="loadExpensesData()" class="btn-secondary text-xs">Apply</button>
+            </div>
+            <div class="overflow-x-auto max-h-[60vh]">
+              <table class="w-full text-left text-xs text-slate-300">
+                <thead class="bg-slate-800/60 text-slate-400 uppercase tracking-wider text-[11px] sticky top-0">
+                  <tr>
+                    <th class="px-3 py-2.5">Date</th>
+                    <th class="px-3 py-2.5">Category</th>
+                    <th class="px-3 py-2.5">Description</th>
+                    <th class="px-3 py-2.5">Vendor</th>
+                    <th class="px-3 py-2.5">Mode</th>
+                    <th class="px-3 py-2.5 text-right">Amount</th>
+                    <th class="px-3 py-2.5 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-expenses" class="divide-y divide-slate-800"></tbody>
+              </table>
+            </div>
           </div>
         </div>
       </section>
@@ -761,7 +946,42 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <!-- Profit & Loss for the selected period -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 mb-6">
+          <div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+            <div>
+              <h3 class="font-bold text-white text-sm">Profit &amp; Loss</h3>
+              <p class="text-[11px] text-slate-400">Revenue excluding GST minus recorded hotel expenses</p>
+            </div>
+            <div class="flex flex-wrap items-end gap-2">
+              <div><label class="input-label">From</label><input type="date" id="pl-from" class="input-field"></div>
+              <div><label class="input-label">To</label><input type="date" id="pl-to" class="input-field"></div>
+              <button type="button" onclick="loadReportsData()" class="btn-secondary text-xs">Apply</button>
+            </div>
+          </div>
+
+          <div id="profit-summary" class="grid grid-cols-2 lg:grid-cols-5 gap-2 text-xs">
+            <div class="text-slate-500">Loading profit summary...</div>
+          </div>
+
+          <div class="overflow-x-auto rounded-xl border border-slate-800 mt-4">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="bg-slate-800/60 text-slate-400 uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th class="px-3 py-2">Month</th>
+                  <th class="px-3 py-2 text-right">Revenue (excl. GST)</th>
+                  <th class="px-3 py-2 text-right">Expenses</th>
+                  <th class="px-3 py-2 text-right">Net Profit</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-profit-monthly" class="divide-y divide-slate-800">
+                <tr><td colspan="4" class="text-center py-4 text-slate-500">Loading monthly profit...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
             <h3 class="font-bold text-white text-sm mb-3">Revenue by Department</h3>
             <div id="revenue-department-breakdown" class="space-y-3">
@@ -771,6 +991,12 @@
           <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
             <h3 class="font-bold text-white text-sm mb-3">India GST Collection Breakdown</h3>
             <div id="gst-summary-breakdown" class="space-y-3">
+            </div>
+          </div>
+
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <h3 class="font-bold text-white text-sm mb-3">Expenses by Category</h3>
+            <div id="expense-category-breakdown" class="space-y-3">
             </div>
           </div>
         </div>
@@ -918,7 +1144,181 @@
             </form>
           </div>
 
-          <!-- 4. Hotel Profile, Bank & UPI Info -->
+          <!-- 4. Local Network & Connected Devices -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 lg:col-span-2">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="flex items-center space-x-2">
+                <span class="text-xl">📶</span>
+                <div>
+                  <h3 class="font-bold text-white text-base">Local Network &amp; Connected Devices</h3>
+                  <p class="text-xs text-slate-400">Let other staff devices on the same private Wi-Fi use this PMS. Off by default.</p>
+                </div>
+              </div>
+              <span id="lan-mode-badge" class="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-slate-700 bg-slate-800 text-slate-300">Local only</span>
+            </div>
+
+            <form id="form-lan-config" onsubmit="handleSaveLanConfig(event)" class="space-y-4">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                <div class="sm:col-span-2 p-3 bg-slate-800/50 border border-slate-700 rounded-xl flex items-start space-x-2">
+                  <input type="checkbox" id="lan-enabled" class="rounded bg-slate-800 border-slate-700 mt-0.5">
+                  <label for="lan-enabled" class="text-xs text-slate-300">
+                    <strong class="text-white">Enable access on this local network</strong><br>
+                    Keep this off unless you intend to let other devices connect. Never forward this port from your router.
+                  </label>
+                </div>
+                <div>
+                  <label class="input-label">Local port (default 5000)</label>
+                  <input type="number" id="lan-port" min="1024" max="65535" class="input-field">
+                </div>
+              </div>
+
+              <div id="lan-warnings" class="text-[11px] text-amber-300 space-y-1"></div>
+              <div class="flex flex-wrap items-center gap-2">
+                <button type="button" onclick="runLanDiagnostics()" class="btn-secondary text-xs">🔍 Test LAN Connection</button>
+                <span class="text-[11px] text-slate-500">Checks the listener, LAN URL and Windows firewall rule.</span>
+              </div>
+              <div id="lan-diagnostics" class="space-y-1.5 text-[11px]"></div>
+
+              <div class="p-4 bg-slate-800/50 border border-slate-700 rounded-xl space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <div class="text-xs text-slate-400">LAN connection URL</div>
+                  <div id="lan-security-badge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300">Checking...</div>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-2">
+                  <select id="lan-url" class="input-field font-mono text-xs flex-1"></select>
+                  <button type="button" onclick="copyLanUrl()" class="btn-secondary text-xs whitespace-nowrap">📋 Copy URL</button>
+                  <button type="button" onclick="showLanQr()" class="btn-secondary text-xs whitespace-nowrap">🔳 Show QR</button>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div><div class="text-slate-500">Host name</div><div id="lan-hostname" class="text-white font-semibold">—</div></div>
+                  <div><div class="text-slate-500">LAN address</div><div id="lan-address" class="text-white font-mono">—</div></div>
+                  <div><div class="text-slate-500">Port</div><div id="lan-current-port" class="text-white font-mono">—</div></div>
+                  <div><div class="text-slate-500">Active sessions</div><div id="lan-active-sessions" class="text-white font-mono">—</div></div>
+                </div>
+                <div id="lan-qr-container" class="hidden pt-2 border-t border-slate-700 text-center">
+                  <img id="lan-qr-img" alt="LAN access QR code" class="mx-auto rounded-lg bg-white p-2" width="220" height="220">
+                  <p class="text-[10px] text-slate-400 mt-2">Scan on a phone connected to the same private Wi-Fi.</p>
+                </div>
+                <p class="text-[11px] text-slate-500">
+                  Remote devices cannot connect while the host is shut down, asleep, disconnected or the server is stopped.
+                  Guest Wi-Fi isolation, VLANs or different subnets can also block access. Manual IP:port access always works.
+                </p>
+              </div>
+
+              <div class="flex gap-2">
+                <button type="submit" class="btn-primary text-xs">Apply Network Settings</button>
+                <button type="button" onclick="loadSettingsData()" class="btn-secondary text-xs">Refresh</button>
+              </div>
+            </form>
+
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">Recent device sessions</h4>
+                <span class="text-[10px] text-slate-500">Revoking signs that device out immediately</span>
+              </div>
+              <div id="lan-sessions-list" class="space-y-2 text-xs">
+                <div class="text-slate-500">Loading sessions...</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5. System Health, Version & Updates -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 lg:col-span-2">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="flex items-center space-x-2">
+                <span class="text-xl">🩺</span>
+                <div>
+                  <h3 class="font-bold text-white text-base">System Health, Version &amp; Updates</h3>
+                  <p class="text-xs text-slate-400">Database, storage, backups, email and release status</p>
+                </div>
+              </div>
+              <span id="app-version-badge" class="px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold border border-slate-700 bg-slate-800 text-indigo-300">v—</span>
+            </div>
+
+            <div id="system-health-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div class="text-slate-500 text-xs">Loading health status...</div>
+            </div>
+
+            <div class="p-4 bg-slate-800/50 border border-slate-700 rounded-xl flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div class="text-xs font-bold text-white">Release updates</div>
+                <div class="text-[11px] text-slate-400">Checks GitHub automatically once a day in installed builds; you can also check now. Hotel operations never need internet.</div>
+              </div>
+              <button type="button" onclick="checkForUpdates()" class="btn-secondary text-xs">Check for Updates</button>
+            </div>
+            <div id="update-check-result" class="text-xs text-slate-400"></div>
+          </div>
+
+          <!-- 5b. About, Support & Uninstall -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 lg:col-span-2">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="flex items-center space-x-2">
+                <span class="text-xl">💜</span>
+                <div>
+                  <h3 class="font-bold text-white text-base">About, Support &amp; Uninstall</h3>
+                  <p class="text-xs text-slate-400">Developer details, donation options, app information and removal</p>
+                </div>
+              </div>
+            </div>
+            <div id="about-app-container" class="text-xs text-slate-500">Loading app details...</div>
+          </div>
+
+          <!-- 6. Staff Users & Access -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 lg:col-span-2">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="flex items-center space-x-2">
+                <span class="text-xl">👥</span>
+                <div>
+                  <h3 class="font-bold text-white text-base">Staff Users &amp; Access</h3>
+                  <p class="text-xs text-slate-400">Add staff, assign roles, reset passwords and revoke access</p>
+                </div>
+              </div>
+              <div class="flex gap-2">
+                <button onclick="openUserManager()" class="btn-primary text-xs">➕ Add Staff User</button>
+                <button onclick="openUserManager()" class="btn-secondary text-xs">Manage Users</button>
+              </div>
+            </div>
+            <div id="staff-user-summary" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              <div class="text-slate-500 text-xs">Loading staff users...</div>
+            </div>
+          </div>
+
+          <!-- 6b. Hotel Logo & Branding -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+            <div class="flex items-center space-x-2">
+              <span class="text-xl">🏷️</span>
+              <div>
+                <h3 class="font-bold text-white text-base">Hotel Logo &amp; Branding</h3>
+                <p class="text-xs text-slate-400">Your own logo appears in the app header and on every PDF bill.</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-4 p-3 bg-slate-800/50 border border-slate-700 rounded-xl">
+              <img id="settings-logo-preview" src="/logo.png" alt="Hotel logo preview" class="h-16 w-16 object-contain rounded-lg bg-slate-900 border border-slate-700 p-1">
+              <div class="text-[11px] text-slate-400">PNG, JPG or WebP. Up to 1.5 MB. A square or wide logo with a transparent background prints best.</div>
+            </div>
+            <input type="file" id="hotel-logo-input" accept="image/png,image/jpeg,image/webp" class="block w-full text-xs text-slate-400 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-700 file:text-white hover:file:bg-slate-600">
+            <div class="flex flex-wrap gap-2">
+              <button type="button" onclick="uploadHotelLogo()" class="btn-primary text-xs">Upload Hotel Logo</button>
+              <button type="button" onclick="resetHotelLogo()" class="btn-secondary text-xs">Reset to Default</button>
+            </div>
+          </div>
+
+          <!-- 6c. Desktop Shortcut -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+            <div class="flex items-center space-x-2">
+              <span class="text-xl">🖥️</span>
+              <div>
+                <h3 class="font-bold text-white text-base">Desktop Shortcut</h3>
+                <p class="text-xs text-slate-400">Create a one-click launcher that starts the PMS and opens it in its own app window (Windows, Linux or macOS) — no browser address bar.</p>
+              </div>
+            </div>
+            <p class="text-[11px] text-slate-400">The installer also creates this automatically. Recreate it here if the shortcut was deleted or the folder moved.</p>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" onclick="createDesktopShortcut()" class="btn-primary text-xs">Create Desktop Shortcut</button>
+            </div>
+          </div>
+
+          <!-- 7. Hotel Profile, Bank & UPI Info -->
           <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
             <div class="flex items-center space-x-2">
               <span class="text-xl">🏨</span>
@@ -962,6 +1362,11 @@
                   <label class="input-label">UPI ID (For Bills)</label>
                   <input type="text" id="edit-upi-id" class="input-field">
                 </div>
+              </div>
+              <div>
+                <label class="input-label">WhatsApp Country Code</label>
+                <input type="text" id="edit-country-code" class="input-field" placeholder="91" maxlength="4">
+                <p class="text-[10px] text-slate-500 mt-1">Used to add the country code to 10-digit guest phone numbers when sharing bills on WhatsApp.</p>
               </div>
               <button type="submit" class="btn-secondary text-xs mt-2">Save Profile Updates</button>
             </form>
@@ -1170,14 +1575,50 @@
   <div id="modal-invoice" class="modal-backdrop hidden">
     <div class="modal-box max-w-2xl bg-white text-slate-900 print:p-0 print:border-none print:shadow-none">
       <div class="flex justify-between items-center pb-3 border-b border-slate-200 print:hidden">
-        <h3 class="font-bold text-slate-800 text-sm">Tax Invoice Preview (India GST Compliant)</h3>
+        <h3 id="invoice-modal-title" class="font-bold text-slate-800 text-sm">Tax Invoice Preview (India GST Compliant)</h3>
         <div class="flex gap-2">
-          <button onclick="window.print()" class="px-3 py-1 bg-indigo-600 text-white rounded text-xs font-semibold">🖨️ Print Invoice / PDF</button>
+          <button id="invoice-download-pdf" onclick="downloadInvoicePdf()" class="px-3 py-1 bg-emerald-600 text-white rounded text-xs font-semibold hidden">⬇️ Download PDF</button>
+          <button onclick="window.print()" class="px-3 py-1 bg-indigo-600 text-white rounded text-xs font-semibold">🖨️ Print</button>
           <button onclick="closeModal('modal-invoice')" class="px-2 py-1 bg-slate-200 text-slate-700 rounded text-xs">&times;</button>
         </div>
       </div>
       <div id="invoice-printable-content" class="p-6">
         <!-- Dynamically populated with Logo, Bank, UPI and Items -->
+      </div>
+      <div class="px-6 pb-4 text-center text-[10px] text-slate-500">
+        Generated by Nexuzy PMS · Nexuzy Lab
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: RESERVATION / BOOKING MANAGEMENT -->
+  <div id="modal-reservation-manage" class="modal-backdrop hidden">
+    <div class="modal-box max-w-3xl max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-800">
+        <div>
+          <h3 class="font-bold text-white text-base">Booking Management</h3>
+          <p class="text-xs text-slate-400">Advance ledger, confirmation documents and booking changes</p>
+        </div>
+        <button onclick="closeModal('modal-reservation-manage')" class="text-slate-500 hover:text-white">&times;</button>
+      </div>
+      <div id="reservation-manage-content">
+        <div class="text-slate-500 text-xs">Loading booking...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CHECKOUT BILL PREVIEW & CONFIRMATION -->
+  <div id="modal-checkout" class="modal-backdrop hidden">
+    <div class="modal-box max-w-3xl max-h-[92vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-800">
+        <div>
+          <h3 class="font-bold text-white text-base">Checkout Bill Preview</h3>
+          <p class="text-xs text-slate-400">Review, confirm, collect payment and issue the final tax invoice</p>
+        </div>
+        <button onclick="closeModal('modal-checkout')" class="text-slate-500 hover:text-white">&times;</button>
+      </div>
+      <div id="checkout-preview-content">
+        <div class="text-slate-500 text-xs">Loading bill...</div>
       </div>
     </div>
   </div>
@@ -1251,6 +1692,7 @@
             <option value="cash">Cash</option>
             <option value="card">Credit / Debit Card</option>
             <option value="bank_transfer">Bank Transfer / NEFT</option>
+            <option value="netbanking">Net Banking</option>
           </select>
         </div>
         <div>
@@ -1269,7 +1711,184 @@
     </div>
   </div>
 
+  <!-- MODAL: ROOM & ROOM-TYPE MANAGEMENT -->
+  <div id="modal-room-manager" class="modal-backdrop hidden">
+    <div class="modal-box max-w-5xl max-h-[92vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-800">
+        <div>
+          <h3 class="font-bold text-white text-base">Room &amp; Room-Type Management</h3>
+          <p class="text-xs text-slate-400">Create rooms, floors, categories and selling rates</p>
+        </div>
+        <button onclick="closeModal('modal-room-manager')" class="text-slate-500 hover:text-white">&times;</button>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-sm font-bold text-white">Room Types</h4>
+            <button onclick="resetRoomTypeForm()" class="text-xs text-indigo-400 hover:underline">+ New Type</button>
+          </div>
+          <form id="form-room-type" onsubmit="handleRoomTypeSubmit(event)" class="p-3 bg-slate-800/50 border border-slate-700 rounded-xl space-y-2 mb-3">
+            <input type="hidden" id="room-type-id">
+            <div class="grid grid-cols-3 gap-2">
+              <input type="text" id="room-type-name" required placeholder="Type name" class="input-field">
+              <input type="text" id="room-type-code" required placeholder="Code" class="input-field uppercase">
+              <input type="number" id="room-type-rate" required min="0" step="0.01" placeholder="Rate" class="input-field">
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+              <input type="number" id="room-type-occupancy" min="1" value="2" placeholder="Max guests" class="input-field">
+              <input type="number" id="room-type-extra" min="0" value="500" placeholder="Extra adult" class="input-field">
+              <input type="number" id="room-type-tax" min="0" max="28" value="12" placeholder="GST %" class="input-field">
+            </div>
+            <input type="text" id="room-type-amenities" placeholder="Amenities (Wi-Fi, AC, TV...)" class="input-field">
+            <div class="flex justify-end gap-2">
+              <button type="button" onclick="resetRoomTypeForm()" class="btn-secondary text-xs">Clear</button>
+              <button type="submit" class="btn-primary text-xs">Save Room Type</button>
+            </div>
+          </form>
+          <div id="room-types-table" class="space-y-2 text-xs"></div>
+        </div>
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-sm font-bold text-white">Rooms</h4>
+            <button onclick="resetRoomForm()" class="text-xs text-indigo-400 hover:underline">+ New Room</button>
+          </div>
+          <form id="form-room" onsubmit="handleRoomSubmit(event)" class="p-3 bg-slate-800/50 border border-slate-700 rounded-xl space-y-2 mb-3">
+            <input type="hidden" id="room-id">
+            <div class="grid grid-cols-3 gap-2">
+              <input type="text" id="room-number" required placeholder="Room no." class="input-field">
+              <select id="room-type-select" required class="input-field"></select>
+              <input type="text" id="room-floor" placeholder="Floor" class="input-field">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <input type="text" id="room-building" placeholder="Building / wing" value="Main Wing" class="input-field">
+              <input type="text" id="room-features" placeholder="Features" class="input-field">
+            </div>
+            <div class="flex justify-end gap-2">
+              <button type="button" onclick="resetRoomForm()" class="btn-secondary text-xs">Clear</button>
+              <button type="submit" class="btn-primary text-xs">Save Room</button>
+            </div>
+          </form>
+          <div id="rooms-table" class="space-y-2 text-xs max-h-80 overflow-y-auto"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: RESTAURANT MENU MANAGEMENT -->
+  <div id="modal-menu-manager" class="modal-backdrop hidden">
+    <div class="modal-box max-w-5xl max-h-[92vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-800">
+        <div>
+          <h3 class="font-bold text-white text-base">Restaurant Menu Management</h3>
+          <p class="text-xs text-slate-400">Categories, dishes, prices, GST and kitchen stations</p>
+        </div>
+        <button onclick="closeModal('modal-menu-manager')" class="text-slate-500 hover:text-white">&times;</button>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="space-y-3">
+          <h4 class="text-sm font-bold text-white">Categories</h4>
+          <form onsubmit="handleMenuCategorySubmit(event)" class="flex gap-2">
+            <input type="text" id="menu-category-name" required placeholder="New category" class="input-field">
+            <button type="submit" class="btn-primary text-xs whitespace-nowrap">Add</button>
+          </form>
+          <div id="menu-categories-list" class="space-y-2 text-xs"></div>
+          <div class="p-3 bg-slate-800/50 border border-slate-700 rounded-xl text-[11px] text-slate-400">
+            Categories and items are stored in the hotel database. Archived items disappear from the POS but remain on past bills.
+          </div>
+        </div>
+        <div class="lg:col-span-2 space-y-3">
+          <div class="flex items-center justify-between">
+            <h4 class="text-sm font-bold text-white">Menu Items</h4>
+            <button onclick="resetMenuItemForm()" class="text-xs text-indigo-400 hover:underline">+ New Item</button>
+          </div>
+          <form id="form-menu-item" onsubmit="handleMenuItemSubmit(event)" class="p-3 bg-slate-800/50 border border-slate-700 rounded-xl space-y-2">
+            <input type="hidden" id="menu-item-id">
+            <div class="grid grid-cols-3 gap-2">
+              <input type="text" id="menu-item-name" required placeholder="Item name" class="input-field">
+              <select id="menu-item-category" required class="input-field"></select>
+              <input type="number" id="menu-item-price" required min="0" step="0.01" placeholder="Price" class="input-field">
+            </div>
+            <div class="grid grid-cols-4 gap-2">
+              <input type="number" id="menu-item-tax" min="0" max="28" value="5" placeholder="GST %" class="input-field">
+              <select id="menu-item-station" class="input-field">
+                <option value="kitchen">Kitchen</option>
+                <option value="bar">Bar</option>
+                <option value="bakery">Bakery</option>
+              </select>
+              <label class="flex items-center gap-2 text-xs text-slate-300 px-2"><input type="checkbox" id="menu-item-veg" checked class="rounded bg-slate-800 border-slate-700"> Veg</label>
+              <label class="flex items-center gap-2 text-xs text-slate-300 px-2"><input type="checkbox" id="menu-item-available" checked class="rounded bg-slate-800 border-slate-700"> Available</label>
+            </div>
+            <input type="text" id="menu-item-description" placeholder="Description / portion notes" class="input-field">
+            <div class="flex justify-end gap-2">
+              <button type="button" onclick="resetMenuItemForm()" class="btn-secondary text-xs">Clear</button>
+              <button type="submit" class="btn-primary text-xs">Save Item</button>
+            </div>
+          </form>
+          <div id="menu-items-list" class="space-y-2 text-xs max-h-[46vh] overflow-y-auto"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: STAFF USER MANAGEMENT -->
+  <div id="modal-user-manager" class="modal-backdrop hidden">
+    <div class="modal-box max-w-4xl max-h-[92vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-800">
+        <div>
+          <h3 class="font-bold text-white text-base">Staff Users &amp; Access</h3>
+          <p class="text-xs text-slate-400">Create logins, change roles and deactivate staff</p>
+        </div>
+        <button onclick="closeModal('modal-user-manager')" class="text-slate-500 hover:text-white">&times;</button>
+      </div>
+      <form id="form-new-user" onsubmit="handleCreateUser(event)" class="p-3 bg-slate-800/50 border border-slate-700 rounded-xl space-y-2 mb-4">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2">
+          <input type="text" id="new-user-username" required placeholder="Username" class="input-field">
+          <input type="text" id="new-user-fullname" required placeholder="Full name" class="input-field">
+          <input type="email" id="new-user-email" placeholder="Email" class="input-field">
+          <input type="tel" id="new-user-phone" placeholder="Phone" class="input-field">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <select id="new-user-role" required class="input-field">
+            <option value="front_desk">Front Desk</option>
+            <option value="general_manager">General Manager</option>
+            <option value="cashier">Cashier</option>
+            <option value="captain">Restaurant Captain</option>
+            <option value="waiter">Waiter</option>
+            <option value="kitchen">Kitchen</option>
+            <option value="housekeeping">Housekeeping</option>
+            <option value="maintenance">Maintenance</option>
+            <option value="inventory">Store / Inventory</option>
+            <option value="admin">Administrator</option>
+          </select>
+          <input type="password" id="new-user-password" required minlength="8" placeholder="Temporary password (min 8)" class="input-field">
+        </div>
+        <div class="flex justify-end">
+          <button type="submit" class="btn-primary text-xs">Create Staff Login</button>
+        </div>
+      </form>
+      <div id="staff-users-list" class="space-y-2 text-xs">
+        <div class="text-slate-500">Loading staff users...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: RESTAURANT BILL -->
+  <div id="modal-restaurant-bill" class="modal-backdrop hidden">
+    <div class="modal-box max-w-2xl">
+      <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-800">
+        <div>
+          <h3 class="font-bold text-white text-base">Restaurant Bill</h3>
+          <p class="text-xs text-slate-400">Settled bill and downloadable PDF</p>
+        </div>
+        <button onclick="closeModal('modal-restaurant-bill')" class="text-slate-500 hover:text-white">&times;</button>
+      </div>
+      <div id="restaurant-bill-content" class="text-xs text-slate-400">Loading bill...</div>
+    </div>
+  </div>
+
   <!-- App Logic Scripts -->
   <script src="app.js"></script>
+  <script src="p0-ui.js"></script>
+  <script src="admin-ui.js"></script>
 </body>
 </html>

@@ -13,9 +13,10 @@ if (!fs.existsSync(BACKUP_DIR)) {
 }
 
 const ALL_TABLES = [
-  'properties', 'users', 'room_types', 'rooms', 'guests',
+  'properties', 'document_sequences', 'users', 'room_types', 'rooms', 'guests',
   'reservations', 'group_reservations', 'group_room_reservations',
-  'stays', 'folios', 'folio_entries', 'payments', 'invoices',
+  'stays', 'folios', 'folio_entries', 'payments', 'payment_refunds',
+  'booking_documents', 'checkout_snapshots', 'invoices',
   'restaurant_tables', 'menu_categories', 'menu_items', 'menu_variants',
   'restaurant_orders', 'order_items', 'kitchen_tickets',
   'housekeeping_tasks', 'maintenance_tickets', 'cashier_shifts',
@@ -41,7 +42,7 @@ router.get('/export-nxp', authenticateToken, requireRoles('admin', 'general_mana
 
     const payload = {
       format: 'NEXUZY_PMS_PACKAGE',
-      version: '1.0.0',
+      version: '1.1.0',
       exported_at: timestamp,
       property_code: property ? property.code : 'NEX-01',
       property_name: property ? property.name : 'Nexuzy PMS',

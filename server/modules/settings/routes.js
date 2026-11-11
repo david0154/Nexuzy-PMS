@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const fs = require('fs');
+const path = require('path');
 const nodemailer = require('nodemailer');
 const db = require('../../config/database');
 const { authenticateToken, requireRoles } = require('../../middleware/auth');
@@ -38,7 +40,9 @@ router.patch('/property', authenticateToken, requireRoles('admin'), async (req, 
       name, gstin, address, city, state, country, phone, email,
       currency, currency_symbol, checkin_time, checkout_time,
       bank_name, bank_account_number, bank_ifsc, bank_branch,
-      upi_id, upi_name, default_room_tax_rate, default_restaurant_tax_rate
+      upi_id, upi_name, default_room_tax_rate, default_restaurant_tax_rate,
+      require_advance_for_confirmation, advance_percentage, advance_due_days, invoice_prefix,
+      phone_country_code
     } = req.body;
 
     const prop = await db.get('SELECT id FROM properties LIMIT 1');
@@ -65,13 +69,21 @@ router.patch('/property', authenticateToken, requireRoles('admin'), async (req, 
            upi_id = COALESCE(?, upi_id),
            upi_name = COALESCE(?, upi_name),
            default_room_tax_rate = COALESCE(?, default_room_tax_rate),
-           default_restaurant_tax_rate = COALESCE(?, default_restaurant_tax_rate)
+           default_restaurant_tax_rate = COALESCE(?, default_restaurant_tax_rate),
+           require_advance_for_confirmation = COALESCE(?, require_advance_for_confirmation),
+           advance_percentage = COALESCE(?, advance_percentage),
+           advance_due_days = COALESCE(?, advance_due_days),
+           invoice_prefix = COALESCE(?, invoice_prefix),
+           phone_country_code = COALESCE(?, phone_country_code)
        WHERE id = ?`,
       [
         name, gstin, address, city, state, country, phone, email,
         currency, currency_symbol, checkin_time, checkout_time,
         bank_name, bank_account_number, bank_ifsc, bank_branch,
         upi_id, upi_name, default_room_tax_rate, default_restaurant_tax_rate,
+        require_advance_for_confirmation === undefined ? null : (require_advance_for_confirmation ? 1 : 0),
+        advance_percentage, advance_due_days, invoice_prefix,
+        phone_country_code,
         prop.id
       ]
     );
@@ -88,6 +100,77 @@ router.patch('/property', authenticateToken, requireRoles('admin'), async (req, 
 
     const updated = await db.get('SELECT * FROM properties WHERE id = ?', [prop.id]);
     res.json({ success: true, message: 'Hotel settings updated successfully', property: updated });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/v1/settings/logo
+// Accepts a base64 data URL from the admin's logo file. Images are stored
+// beside the database so backups and property moves keep the branding.
+router.post('/logo', authenticateToken, requireRoles('admin'), async (req, res) => {
+  try {
+    const dataUrl = String(req.body.data_url || '');
+    const match = dataUrl.match(/^data:image\/(png|jpe?g|webp);base64,([A-Za-z0-9+/=\s]+)$/);
+    if (!match) {
+      return res.status(400).json({ success: false, error: 'Upload a PNG, JPG or WebP image file.' });
+    }
+    const buffer = Buffer.from(match[2].replace(/\s/g, ''), 'base64');
+    if (!buffer.length) return res.status(400).json({ success: false, error: 'The selected logo file is empty.' });
+    if (buffer.length > 1.5 * 1024 * 1024) {
+      return res.status(400).json({ success: false, error: 'Logo must be 1.5 MB or smaller. Resize the image and try again.' });
+    }
+
+    const ext = match[1].toLowerCase() === 'jpeg' ? 'jpg' : (match[1].toLowerCase() === 'jpg' ? 'jpg' : match[1].toLowerCase());
+    const dataDir = process.env.DB_PATH
+      ? path.dirname(process.env.DB_PATH)
+      : path.join(__dirname, '..', '..', '..', 'data');
+    const uploadDir = path.join(dataDir, 'uploads');
+    fs.mkdirSync(uploadDir, { recursive: true });
+    const filename = `hotel-logo-${Date.now()}.${ext}`;
+    fs.writeFileSync(path.join(uploadDir, filename), buffer);
+
+    const prop = await db.get('SELECT id, logo_url FROM properties LIMIT 1');
+    if (!prop) return res.status(404).json({ success: false, error: 'Property not found' });
+    const logoUrl = `/uploads/${filename}`;
+    await db.run('UPDATE properties SET logo_url = ? WHERE id = ?', [logoUrl, prop.id]);
+
+    // Remove the previous uploaded logo once the new one is saved.
+    if (prop.logo_url && String(prop.logo_url).startsWith('/uploads/')) {
+      try { fs.rmSync(path.join(dataDir, String(prop.logo_url).replace(/^\/+/, '')), { force: true }); } catch (err) { /* ignore */ }
+    }
+
+    await logAudit({
+      propertyId: prop.id,
+      userId: req.user.id,
+      action: 'UPDATE_HOTEL_LOGO',
+      entityType: 'property',
+      entityId: prop.id,
+      details: { logo_url: logoUrl, bytes: buffer.length },
+      req
+    });
+
+    res.json({ success: true, message: 'Hotel logo updated. It now appears in the app header and on PDF bills.', logo_url: logoUrl });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/v1/settings/logo — restore the Nexuzy default mark
+router.delete('/logo', authenticateToken, requireRoles('admin'), async (req, res) => {
+  try {
+    const prop = await db.get('SELECT id, logo_url FROM properties LIMIT 1');
+    if (!prop) return res.status(404).json({ success: false, error: 'Property not found' });
+    await db.run("UPDATE properties SET logo_url = '/logo.png' WHERE id = ?", [prop.id]);
+    await logAudit({
+      propertyId: prop.id,
+      userId: req.user.id,
+      action: 'RESET_HOTEL_LOGO',
+      entityType: 'property',
+      entityId: prop.id,
+      req
+    });
+    res.json({ success: true, message: 'Hotel logo reset to the default mark.', logo_url: '/logo.png' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

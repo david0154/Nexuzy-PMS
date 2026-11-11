@@ -1,5 +1,16 @@
 node_modules/
-data/nexuzy.db*
+data/
+backups/pre-*.db
+backups/*.db
+backups/*.nxp
+backups/original-data-backup-*/
+backups/original-app-backup-*
+backups/*.db-wal
+backups/*.db-shm
+dist/
+installer/build/
+installer/build-cross/
+installer/vendor/
 .env
 npm-debug.log*
 .DS_Store

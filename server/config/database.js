@@ -22,9 +22,11 @@ function getDb() {
       }
     });
 
-    // Enable WAL mode & foreign keys for high performance and integrity
+    // Enable WAL mode, foreign keys and a busy timeout so concurrent LAN
+    // clients queue for the single SQLite writer instead of failing.
     dbInstance.run('PRAGMA journal_mode = WAL;');
     dbInstance.run('PRAGMA foreign_keys = ON;');
+    dbInstance.run('PRAGMA busy_timeout = 5000;');
   }
   return dbInstance;
 }
@@ -67,15 +69,21 @@ const db = {
     });
   },
 
-  // Transaction helper
+  // Transaction helper. BEGIN IMMEDIATE takes the write lock up front, which
+  // prevents two LAN devices from both reading a sequence/balance and then
+  // racing to write inconsistent financial records.
   async transaction(callback) {
-    await db.run('BEGIN TRANSACTION');
+    await db.run('BEGIN IMMEDIATE TRANSACTION');
     try {
       const result = await callback(db);
       await db.run('COMMIT');
       return result;
     } catch (error) {
-      await db.run('ROLLBACK');
+      try {
+        await db.run('ROLLBACK');
+      } catch (rollbackError) {
+        console.error('Transaction rollback failed:', rollbackError.message);
+      }
       throw error;
     }
   },

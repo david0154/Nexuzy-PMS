@@ -4,8 +4,9 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../../config/database');
-const { JWT_SECRET } = require('../../middleware/auth');
+const { JWT_SECRET, authenticateToken, requireRoles } = require('../../middleware/auth');
 const { logAudit } = require('../../middleware/audit');
+const { saveHotelLogoDataUrl } = require('../../services/branding');
 
 // GET /api/v1/setup/status
 // Checks if the PMS is initialized or needs first-time setup
@@ -22,7 +23,9 @@ router.get('/status', async (req, res) => {
     res.json({
       success: true,
       initialized,
-      property
+      property,
+      shortcut_supported: ['win32', 'linux', 'darwin'].includes(process.platform),
+      platform: process.platform
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -65,7 +68,8 @@ router.post('/initialize', async (req, res) => {
       admin_full_name,
       admin_username,
       admin_email,
-      admin_password
+      admin_password,
+      logo_data_url
     } = req.body;
 
     if (!hotel_name || !phone || !admin_username || !admin_password || !admin_full_name) {
@@ -82,12 +86,21 @@ router.post('/initialize', async (req, res) => {
     const adminId = uuidv4();
     const passwordHash = await bcrypt.hash(admin_password, 10);
 
+    let logoUrl = '/logo.png';
+    if (logo_data_url) {
+      try {
+        logoUrl = saveHotelLogoDataUrl(logo_data_url).logoUrl;
+      } catch (logoErr) {
+        return res.status(logoErr.status || 400).json({ success: false, error: logoErr.message });
+      }
+    }
+
     await db.transaction(async () => {
       // 1. Insert Property
       await db.run(
         `INSERT INTO properties 
          (id, name, code, gstin, address, city, state, country, phone, email, currency, currency_symbol, timezone, business_date, bank_name, bank_account_number, bank_ifsc, bank_branch, upi_id, upi_name, default_room_tax_rate, default_restaurant_tax_rate, logo_url)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '/logo.png')`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           propId,
           hotel_name,
@@ -110,7 +123,8 @@ router.post('/initialize', async (req, res) => {
           upi_id || null,
           upi_name || null,
           Number(default_room_tax_rate) || 12.0,
-          Number(default_restaurant_tax_rate) || 5.0
+          Number(default_restaurant_tax_rate) || 5.0,
+          logoUrl
         ]
       );
 
@@ -164,7 +178,7 @@ router.post('/initialize', async (req, res) => {
       action: 'FIRST_TIME_SETUP_INITIALIZED',
       entityType: 'property',
       entityId: propId,
-      details: { hotel_name, admin_username }
+      details: { hotel_name, admin_username, logo_url: logoUrl }
     });
 
     res.json({
@@ -184,11 +198,34 @@ router.post('/initialize', async (req, res) => {
         code: propCode,
         business_date: today,
         currency,
-        currency_symbol
+        currency_symbol,
+        logo_url: logoUrl
       }
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/v1/setup/shortcut
+// Creates a desktop launcher for the computer running the PMS. Administrators
+// can (re)create it during first setup or later from Settings.
+router.post('/shortcut', authenticateToken, requireRoles('admin'), async (req, res) => {
+  try {
+    const { createShortcut } = require('../../../scripts/create-shortcut');
+    const shortcutPath = createShortcut();
+    await logAudit({
+      propertyId: req.user.property_id,
+      userId: req.user.id,
+      action: 'CREATE_DESKTOP_SHORTCUT',
+      entityType: 'system',
+      entityId: null,
+      details: { path: shortcutPath, platform: process.platform },
+      req
+    });
+    res.json({ success: true, message: 'Desktop shortcut created', path: shortcutPath });
+  } catch (err) {
+    res.status(500).json({ success: false, error: `Shortcut could not be created: ${err.message}` });
   }
 });
 
