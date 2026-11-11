@@ -51,8 +51,8 @@
 
 The marketing homepage and complete illustrated user guide are static HTML/CSS/JS files under [`public/website/`](public/website/). No build step is required. With the PMS running, open:
 
-- **Homepage:** [http://localhost:5000/website/](http://localhost:5000/website/)
-- **Field guide:** [http://localhost:5000/website/docs.html](http://localhost:5000/website/docs.html)
+- **Homepage:** [https://pms.nexuzy.in/](https://pms.nexuzy.in)
+- **Field guide:** [https://pms.nexuzy.in/docs.html](https://pms.nexuzy.in/docs.html)
 
 The guide covers installation, first-run setup, front desk, reservations, rooms and housekeeping, restaurant POS, GST invoices, expenses, reports, backups, LAN mode, updates, uninstall and troubleshooting. It uses the real Nexuzy PMS logo and 17 annotated screenshots, and can be printed or saved as a PDF.
 
