@@ -540,6 +540,7 @@ async function downloadAuthorizedFile(path, fallbackName) {
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   } catch (err) {
     alert(err.message);
+    throw err;
   }
 }
 
