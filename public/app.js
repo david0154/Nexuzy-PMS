@@ -2610,7 +2610,9 @@ async function handleWalkInSubmit(e) {
     room_id: document.getElementById('walkin-room-select').value,
     nights: document.getElementById('walkin-nights').value,
     rate_per_night: document.getElementById('walkin-rate').value,
-    deposit_paid: document.getElementById('walkin-deposit').value
+    deposit_paid: document.getElementById('walkin-deposit').value,
+    adults: Number(document.getElementById('walkin-adults')?.value || 1),
+    children: Number(document.getElementById('walkin-children')?.value || 0)
   };
 
   try {
