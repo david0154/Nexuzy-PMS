@@ -218,6 +218,9 @@ router.post('/check-in-reservation', authenticateToken, async (req, res) => {
 router.post('/walk-in', authenticateToken, async (req, res) => {
   try {
     const { first_name, last_name, phone, email, id_type, id_number, room_id, nights, rate_per_night, deposit_paid, adults = 1, children = 0 } = req.body;
+    if (!Number.isInteger(Number(adults)) || Number(adults) < 1 || !Number.isInteger(Number(children)) || Number(children) < 0 || Number(adults) + Number(children) > 20) {
+      return res.status(400).json({ success: false, error: 'Enter valid guest counts (at least 1 adult and no more than 20 people).' });
+    }
 
     if (!first_name || !phone || !room_id || !rate_per_night) {
       return res.status(400).json({ success: false, error: 'First name, phone, room and rate are required' });
