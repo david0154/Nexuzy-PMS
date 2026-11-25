@@ -639,7 +639,8 @@ router.get('/:id/guest-qr', authenticateToken, requireRoles(...CHECKOUT_ROLES), 
     if (!lan.enabled) {
       return res.status(409).json({ success: false, error: 'Enable LAN access in Settings before generating guest room QR codes.' });
     }
-    const advertised = lan.addresses.find(a => a.address === lan.primary_address) || lan.addresses[0];
+    const preferredAddress = (() => { try { return new URL(lan.lan_url).hostname; } catch (err) { return ''; } })();
+    const advertised = lan.addresses.find(a => a.address === preferredAddress) || lan.addresses[0];
     if (!advertised) return res.status(409).json({ success: false, error: 'No private hotel LAN address is available.' });
 
     const token = crypto.randomBytes(32).toString('hex');
