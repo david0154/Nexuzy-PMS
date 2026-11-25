@@ -118,6 +118,109 @@ function billPayload(order) {
   };
 }
 
+
+const crypto = require('crypto');
+
+async function guestStayFromToken(token) {
+  if (!/^[a-f0-9]{64}$/i.test(String(token || ''))) return null;
+  const tokenHash = crypto.createHash('sha256').update(String(token)).digest('hex');
+  return db.get(
+    `SELECT s.*, r.room_number, f.id AS folio_id, f.status AS folio_status,
+            g.first_name || ' ' || COALESCE(g.last_name, '') AS guest_name,
+            p.name AS property_name, p.currency_symbol
+     FROM guest_qr_tokens q
+     JOIN stays s ON s.id = q.stay_id
+     JOIN rooms r ON r.id = s.room_id
+     JOIN folios f ON f.stay_id = s.id
+     JOIN guests g ON g.id = s.primary_guest_id
+     JOIN properties p ON p.id = s.property_id
+     WHERE q.token_hash = ? AND q.revoked_at IS NULL
+       AND s.status = 'occupied' AND f.status = 'open'`,
+    [tokenHash]
+  );
+}
+
+router.get('/guest/:token/menu', async (req, res) => {
+  try {
+    const stay = await guestStayFromToken(req.params.token);
+    if (!stay) return res.status(410).json({ success: false, error: 'This room QR is expired. Please contact reception.' });
+    const [categories, items] = await Promise.all([
+      db.all('SELECT id, name FROM menu_categories WHERE property_id = ? AND is_active = 1 ORDER BY display_order, name', [stay.property_id]),
+      db.all('SELECT id, category_id, name, description, price, unit, station, is_veg FROM menu_items WHERE property_id = ? AND is_available = 1 ORDER BY name', [stay.property_id])
+    ]);
+    const property = await db.get('SELECT restaurant_tax_enabled FROM properties WHERE id = ?', [stay.property_id]);
+    res.json({ success: true, hotel: stay.property_name, room: stay.room_number, guest: stay.guest_name, categories, items, tax_included: Number(property.restaurant_tax_enabled) === 1 });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+router.get('/guest/:token/bill', async (req, res) => {
+  try {
+    const stay = await guestStayFromToken(req.params.token);
+    if (!stay) return res.status(410).json({ success: false, error: 'This room QR is expired. Please contact reception.' });
+    const preview = await require('../../services/billing').buildCheckoutPreview(db, stay.id);
+    if (!preview) return res.status(404).json({ success: false, error: 'Guest folio not found.' });
+    res.json({ success: true, room: preview.stay.room_number, guest: preview.stay.guest.name, folio_number: preview.folio.folio_number,
+      charges: preview.entries.map(e => ({ date:e.date, department:e.department, description:e.description, quantity:e.quantity, amount:e.total_amount })),
+      payments: preview.payments.map(p => ({ date:p.created_at, method:p.payment_method, amount:p.amount })),
+      room_charges: preview.totals.room_charges, restaurant_charges: preview.restaurant.posted_total,
+      other_charges: preview.totals.other_charges, paid: preview.totals.total_payments, balance_due: preview.totals.balance_due,
+      total: preview.totals.gross_charges, currency_symbol: preview.property.currency_symbol });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+router.post('/guest/:token/orders', async (req, res) => {
+  try {
+    const stay = await guestStayFromToken(req.params.token);
+    if (!stay) return res.status(410).json({ success: false, error: 'This room QR is expired. Please contact reception.' });
+    const lines = await validateMenuItems(db, req.body.items, stay.property_id);
+    const subtotal = round2(lines.reduce((sum, line) => sum + line.lineSub, 0));
+    const taxAmount = round2(lines.reduce((sum, line) => sum + line.lineTax, 0));
+    const totalAmount = round2(subtotal + taxAmount);
+    const key = String(req.body.idempotency_key || '');
+    if (!key || key.length > 100) return res.status(400).json({ success: false, error: 'Invalid order request. Please submit again.' });
+    const existing = await db.get('SELECT id, order_number, total_amount FROM restaurant_orders WHERE property_id = ? AND idempotency_key = ?', [stay.property_id, key]);
+    if (existing) return res.json({ success:true, duplicate:true, orderId:existing.id, orderNumber:existing.order_number, totalAmount:existing.total_amount });
+
+    const orderId = uuidv4();
+    const orderNo = `QR-${Date.now().toString().slice(-8)}`;
+    await db.transaction(async (conn) => {
+      const active = await conn.get("SELECT id FROM stays WHERE id = ? AND property_id = ? AND status = 'occupied'", [stay.id, stay.property_id]);
+      if (!active) throw new Error('Guest stay is no longer active');
+      await conn.run(
+        `INSERT INTO restaurant_orders (id, order_number, property_id, order_type, stay_id, room_id, status, subtotal, tax_amount, total_amount, guest_name, idempotency_key, payment_status, updated_at)
+         VALUES (?, ?, ?, 'room_service', ?, ?, 'active', ?, ?, ?, ?, ?, 'unpaid', CURRENT_TIMESTAMP)`,
+        [orderId, orderNo, stay.property_id, stay.id, stay.room_id, subtotal, taxAmount, totalAmount, stay.guest_name, key]
+      );
+      for (const line of lines) {
+        await conn.run(
+          `INSERT INTO order_items (id, order_id, menu_item_id, item_name, quantity, unit_price, tax_rate, tax_amount, total_amount, status, notes, addons_json, kot_round)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, 0)`,
+          [uuidv4(), orderId, line.menuItem.id, line.menuItem.name, line.quantity, line.unitPrice, line.taxRate, line.lineTax, line.total, line.notes, line.addonsJson]
+        );
+      }
+      const freshStay = await conn.get('SELECT id FROM stays WHERE id = ? AND status = \'occupied\'', [stay.id]);
+      if (!freshStay) throw new Error('Guest stay is no longer active');
+      const currentOrders = await conn.all("SELECT id FROM restaurant_orders WHERE stay_id = ? AND status = 'active'", [stay.id]);
+      const activeIds = [...currentOrders.map(o => o.id), orderId];
+      for (const id of activeIds) {
+        const newItems = await conn.all("SELECT * FROM order_items WHERE order_id = ? AND status = 'new' AND kot_id IS NULL", [id]);
+        if (!newItems.length) continue;
+        const station = newItems[0].station || 'kitchen';
+        const roundRow = await conn.get('SELECT COALESCE(MAX(round_number),0) AS round FROM kitchen_tickets WHERE order_id = ?', [id]);
+        const round = Number(roundRow.round || 0) + 1;
+        const kotId = uuidv4();
+        await conn.run(
+          `INSERT INTO kitchen_tickets (id, kot_number, order_id, table_id, room_id, station, status, round_number, notes, created_by)
+           VALUES (?, ?, ?, NULL, ?, ?, 'preparing', ?, 'Guest room QR order', NULL)`,
+          [kotId, `KOT-${Date.now().toString().slice(-7)}`, id, stay.room_id, station, round]
+        );
+        for (const item of newItems) await conn.run("UPDATE order_items SET status = 'preparing', kot_id = ?, kot_round = ? WHERE id = ?", [kotId, round, item.id]);
+      }
+    });
+    res.status(201).json({ success:true, message:'Order sent to the kitchen. The charge will appear on your room bill.', orderId, orderNumber:orderNo, totalAmount });
+  } catch (err) { res.status(400).json({ success:false, error:err.message }); }
+});
+
 // ---------------------------------------------------------------
 // Tables / menu
 // ---------------------------------------------------------------
