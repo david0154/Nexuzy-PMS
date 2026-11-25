@@ -2339,6 +2339,16 @@ async function loadSettingsData() {
     document.getElementById('edit-bank-ifsc').value = p.bank_ifsc || '';
     document.getElementById('edit-upi-id').value = p.upi_id || '';
     document.getElementById('edit-country-code').value = p.phone_country_code || '91';
+    const setValue = (id, value) => { const el = document.getElementById(id); if (el) el.value = value; };
+    const setChecked = (id, value) => { const el = document.getElementById(id); if (el) el.checked = Boolean(value); };
+    setValue('edit-room-tax-rate', p.default_room_tax_rate ?? 12);
+    setValue('edit-restaurant-tax-rate', p.default_restaurant_tax_rate ?? 5);
+    setChecked('edit-restaurant-tax-enabled', p.restaurant_tax_enabled);
+    setChecked('edit-rounding-enabled', p.rounding_enabled !== 0);
+    setChecked('edit-local-tax-enabled', p.local_tax_enabled);
+    setValue('edit-local-tax-name', p.local_tax_name || 'Local Tax');
+    setValue('edit-local-tax-amount', p.local_tax_amount ?? 0);
+
 
     // Populate SMTP form
     document.getElementById('smtp-host').value = smtp.host || '';
@@ -2376,7 +2386,14 @@ async function handleSaveHotelProfile(e) {
     bank_account_number: document.getElementById('edit-bank-acc').value,
     bank_ifsc: document.getElementById('edit-bank-ifsc').value,
     upi_id: document.getElementById('edit-upi-id').value,
-    phone_country_code: document.getElementById('edit-country-code').value
+    phone_country_code: document.getElementById('edit-country-code').value,
+    default_room_tax_rate: Number(document.getElementById('edit-room-tax-rate')?.value ?? 12),
+    default_restaurant_tax_rate: Number(document.getElementById('edit-restaurant-tax-rate')?.value ?? 5),
+    restaurant_tax_enabled: Boolean(document.getElementById('edit-restaurant-tax-enabled')?.checked),
+    rounding_enabled: Boolean(document.getElementById('edit-rounding-enabled')?.checked),
+    local_tax_enabled: Boolean(document.getElementById('edit-local-tax-enabled')?.checked),
+    local_tax_name: document.getElementById('edit-local-tax-name')?.value || 'Local Tax',
+    local_tax_amount: Number(document.getElementById('edit-local-tax-amount')?.value ?? 0)
   };
 
   try {
