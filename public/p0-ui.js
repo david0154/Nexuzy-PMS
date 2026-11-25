@@ -305,6 +305,18 @@ async function sendBookingDocument(docId) {
   }
 }
 
+
+async function showGuestRoomQR(stayId) {
+  try {
+    const res = await api(`/stays/${stayId}/guest-qr`);
+    const popup = window.open('', '_blank', 'width=480,height=620');
+    if (!popup) return alert('Allow pop-ups to display the room QR code.');
+    const room = String(res.room_number).replace(/[<>&"]/g, '');
+    popup.document.write(`<!doctype html><html><head><title>Room ${room}</title><style>body{font-family:system-ui;background:#f8fafc;color:#0f172a;text-align:center;padding:24px}img{width:300px;max-width:100%}p{font-size:13px;color:#475569;word-break:break-all}</style></head><body><h2>Guest Restaurant & Bill QR</h2><h1>Room ${room}</h1><img src="${res.data_url}" alt="Guest room QR"><p>Connect to the hotel's guest Wi-Fi before scanning.</p><p>${res.url}</p><button onclick="window.print()">Print QR</button></body></html>`);
+    popup.document.close();
+  } catch (err) { alert(err.message); }
+}
+
 // ---------- Checkout bill ----------
 async function openCheckoutPreview(stayId) {
   try {
@@ -397,6 +409,7 @@ function renderCheckoutPreview(preview) {
     <div class="mt-4 flex flex-wrap gap-2">
       ${!preview.bill_confirmed ? `<button onclick="confirmCheckoutBill()" class="btn-primary text-xs">✅ Confirm Bill Preview</button>` : `<span class="px-3 py-2 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-bold">Bill confirmed by staff</span>`}
       <button onclick="openAddPaymentModal('${preview.folio.id}')" class="btn-secondary text-xs">💵 Record Payment</button>
+      <button onclick="showGuestRoomQR('${preview.stay.id}')" class="btn-secondary text-xs">📱 Guest Room QR</button>
       <button onclick="whatsappStayBill('${preview.stay.id}')" class="btn-secondary text-xs">💬 WhatsApp Bill</button>
       ${preview.bill_confirmed ? `<button onclick="generateCheckoutInvoice()" class="btn-secondary text-xs">🧾 ${preview.existing_invoice ? 'View Final Invoice' : 'Generate Final Invoice'}</button>` : ''}
       <button onclick="completeCheckout()" class="px-3 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold">🚪 Complete Checkout</button>
