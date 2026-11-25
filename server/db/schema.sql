@@ -35,6 +35,11 @@ CREATE TABLE IF NOT EXISTS properties (
     invoice_prefix TEXT DEFAULT 'INV',
     logo_url TEXT DEFAULT '/logo.png',
     phone_country_code TEXT DEFAULT '91',
+    restaurant_tax_enabled INTEGER DEFAULT 0,
+    rounding_enabled INTEGER DEFAULT 1,
+    local_tax_enabled INTEGER DEFAULT 0,
+    local_tax_name TEXT DEFAULT 'Local Tax',
+    local_tax_amount REAL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -223,6 +228,18 @@ CREATE TABLE IF NOT EXISTS stays (
     FOREIGN KEY (room_id) REFERENCES rooms(id),
     FOREIGN KEY (primary_guest_id) REFERENCES guests(id)
 );
+
+CREATE TABLE IF NOT EXISTS guest_qr_tokens (
+    id TEXT PRIMARY KEY,
+    property_id TEXT NOT NULL,
+    stay_id TEXT NOT NULL,
+    token_hash TEXT NOT NULL UNIQUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    revoked_at DATETIME,
+    FOREIGN KEY (property_id) REFERENCES properties(id),
+    FOREIGN KEY (stay_id) REFERENCES stays(id)
+);
+CREATE INDEX IF NOT EXISTS idx_guest_qr_stay ON guest_qr_tokens(stay_id, revoked_at);
 
 -- Folios (One or more per stay, plus group master folios)
 CREATE TABLE IF NOT EXISTS folios (
