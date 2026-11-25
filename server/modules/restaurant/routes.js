@@ -212,10 +212,10 @@ router.post('/guest/:token/orders', async (req, res) => {
       );
       await recalcFolio(conn, folio.id);
 
-      const newItems = await conn.all("SELECT * FROM order_items WHERE order_id = ? AND status = 'new' AND kot_id IS NULL", [orderId]);
+      const newItems = await conn.all("SELECT oi.*, mi.station AS menu_station FROM order_items oi JOIN menu_items mi ON mi.id = oi.menu_item_id WHERE oi.order_id = ? AND oi.status = 'new' AND oi.kot_id IS NULL", [orderId]);
       const grouped = new Map();
       for (const item of newItems) {
-        const station = item.station || 'kitchen';
+        const station = item.menu_station || 'kitchen';
         if (!grouped.has(station)) grouped.set(station, []);
         grouped.get(station).push(item);
       }
