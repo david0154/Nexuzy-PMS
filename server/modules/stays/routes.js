@@ -769,6 +769,26 @@ router.post('/:id/extend', authenticateToken, async (req, res) => {
       }
     });
 
+    const localTax = await db.get('SELECT local_tax_enabled, local_tax_name, local_tax_amount FROM properties WHERE id = ?', [req.user.property_id]);
+    if (localTax && Number(localTax.local_tax_enabled) === 1 && Number(localTax.local_tax_amount) > 0) {
+      const people = Number(stay.adults || 1) + Number(stay.children || 0);
+      const localAmount = Number(localTax.local_tax_amount) * people * nights;
+      await db.transaction(async (conn) => {
+        const folio = await conn.get("SELECT id FROM folios WHERE stay_id = ? AND status = 'open'", [stay.id]);
+        if (!folio) throw new Error('Open guest folio not found for local tax posting');
+        const key = 'local-tax-extension:' + stay.id + ':' + newCheckOut;
+        const duplicate = await conn.get('SELECT id FROM folio_entries WHERE folio_id = ? AND idempotency_key = ?', [folio.id, key]);
+        if (!duplicate) {
+          await conn.run(
+            `INSERT INTO folio_entries (id, folio_id, date, department, description, quantity, unit_price, tax_rate, tax_amount, total_amount, created_by, idempotency_key)
+             VALUES (?, ?, date('now'), 'local_tax', ?, ?, ?, 0, 0, ?, ?, ?)`,
+            [uuidv4(), folio.id, (localTax.local_tax_name || 'Local Tax') + ' - Stay extension', people * nights, Number(localTax.local_tax_amount), localAmount, req.user.id, key]
+          );
+          await recalcFolio(conn, folio.id);
+        }
+      });
+    }
+
     await logAudit({
       propertyId: req.user.property_id,
       userId: req.user.id,
