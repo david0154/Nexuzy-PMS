@@ -217,7 +217,7 @@ router.post('/check-in-reservation', authenticateToken, async (req, res) => {
 // POST /api/v1/stays/walk-in (Instant Walk-In Check In)
 router.post('/walk-in', authenticateToken, async (req, res) => {
   try {
-    const { first_name, last_name, phone, email, id_type, id_number, room_id, nights, rate_per_night, deposit_paid } = req.body;
+    const { first_name, last_name, phone, email, id_type, id_number, room_id, nights, rate_per_night, deposit_paid, adults = 1, children = 0 } = req.body;
 
     if (!first_name || !phone || !room_id || !rate_per_night) {
       return res.status(400).json({ success: false, error: 'First name, phone, room and rate are required' });
@@ -250,9 +250,9 @@ router.post('/walk-in', authenticateToken, async (req, res) => {
 
       // 2. Create Stay
       await db.run(
-        `INSERT INTO stays (id, stay_number, property_id, room_id, primary_guest_id, check_in_time, expected_check_out, status, nightly_rate, checked_in_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'occupied', ?, ?)`,
-        [stayId, stayNo, req.user.property_id, room_id, guestId, checkInTime, expectedCheckOut, rate_per_night, req.user.id]
+        `INSERT INTO stays (id, stay_number, property_id, room_id, primary_guest_id, check_in_time, expected_check_out, status, nightly_rate, adults, children, checked_in_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'occupied', ?, ?, ?, ?)`,
+        [stayId, stayNo, req.user.property_id, room_id, guestId, checkInTime, expectedCheckOut, rate_per_night, Math.max(1, Number(adults) || 1), Math.max(0, Number(children) || 0), req.user.id]
       );
 
       // 3. Create Folio & post initial charge
@@ -275,7 +275,7 @@ router.post('/walk-in', authenticateToken, async (req, res) => {
       );
 
       const localTax = await db.get('SELECT local_tax_enabled, local_tax_name, local_tax_amount FROM properties WHERE id = ?', [req.user.property_id]);
-      const people = Number(req.body.adults || 1) + Number(req.body.children || 0);
+      const people = Math.max(1, Number(adults) || 1) + Math.max(0, Number(children) || 0);
       if (localTax && Number(localTax.local_tax_enabled) === 1 && Number(localTax.local_tax_amount) > 0) {
         const localAmount = Number(localTax.local_tax_amount) * people;
         await db.run(
