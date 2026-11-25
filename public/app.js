@@ -820,7 +820,8 @@ async function whatsappReservationBill(reservationId) {
 async function whatsappStayBill(stayId) {
   try {
     const share = await api(`/stays/${stayId}/whatsapp`);
-    if (!confirm(`Send this checkout bill to ${share.phone} on WhatsApp?\n\nOpen the guest's check-out bill to download the PDF and attach it in the chat.`)) return;
+    if (!confirm(`Send this checkout bill to ${share.phone} on WhatsApp?\n\nThe checkout PDF downloads first. Attach the downloaded PDF in the WhatsApp chat that opens.`)) return;
+    await downloadAuthorizedFile(`/stays/${stayId}/checkout/pdf`, 'checkout-bill.pdf');
     window.open(share.url, '_blank', 'noopener');
   } catch (err) {
     alert(err.message);
