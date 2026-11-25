@@ -352,7 +352,16 @@ function renderCheckoutPreview(preview) {
       </div>
     </div>
 
-    ${t.balance_due > 0 ? `<div class="mt-3 p-2.5 bg-rose-500/10 border border-rose-500/30 rounded-lg text-[11px] text-rose-300">Unpaid balance must be settled before checkout, unless an authorised credit policy applies.</div>` : ''}
+    ${t.balance_due > 0 ? `<div class="mt-3 p-3 bg-rose-500/10 border border-rose-500/30 rounded-lg">
+      <div class="text-[11px] text-rose-200 font-bold">Collect at checkout · ${money(t.balance_due)} due</div>
+      <div class="text-[10px] text-slate-400 mt-1">Choose the payment method. The amount is filled automatically. No amount entry is required.</div>
+      <div class="flex flex-wrap gap-2 mt-2">
+        <button onclick="collectCheckoutPayment('cash')" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-bold">Collect Cash</button>
+        <button onclick="collectCheckoutPayment('upi')" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold">Collect UPI</button>
+        <button onclick="collectCheckoutPayment('card')" class="px-3 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-bold">Collect Card</button>
+      </div>
+      ${preview.rounding_enabled ? `<p class="text-[10px] text-slate-400 mt-2">Rounded collection: ${money(Math.round(t.balance_due))} (nearest ₹1)</p>` : ''}
+    </div>` : ''}
     ${t.refund_due > 0 ? `<div class="mt-3 p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-lg text-[11px] text-amber-300">Guest is owed ${money(t.refund_due)}. Process the refund or acknowledge it before checkout.</div>` : ''}
 
     <div class="mt-4">
@@ -444,6 +453,52 @@ async function generateCheckoutInvoice() {
   }
 }
 
+async function collectCheckoutPayment(method) {
+  if (!checkoutPreviewState) return;
+  if (!['cash', 'upi', 'card'].includes(method)) return alert('Unsupported payment method.');
+  const preview = checkoutPreviewState.preview;
+  if (!preview.bill_confirmed) return alert('Confirm the checkout bill first.');
+  if (!(preview.totals.balance_due > 0)) return alert('There is no outstanding amount to collect.');
+
+  const token = localStorage.getItem('nexuzy_token');
+  const payKey = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + '-' + method);
+  try {
+    const rounded = preview.rounding_enabled ? Math.round(Number(preview.totals.balance_due)) : Number(preview.totals.balance_due);
+    const difference = Number((rounded - Number(preview.totals.balance_due)).toFixed(2));
+    if (Math.abs(difference) >= 0.005) {
+      const adjustmentKey = `checkout-rounding-${checkoutPreviewState.stayId}-${payKey}`;
+      const adjustment = await api(`/folios/${preview.folio.id}/entries`, {
+        method: 'POST',
+        headers: { 'Idempotency-Key': adjustmentKey },
+        body: JSON.stringify({
+          description: 'Automatic checkout rounding adjustment',
+          quantity: 1,
+          unit_price: difference,
+          tax_rate: 0,
+          department: 'discount',
+          idempotency_key: adjustmentKey
+        })
+      });
+    }
+    const amount = rounded;
+    const payment = await api(`/folios/${preview.folio.id}/payments`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': payKey },
+      body: JSON.stringify({
+        amount,
+        payment_method: method,
+        notes: 'Checkout collection'
+      })
+    });
+    alert(payment.duplicate ? 'Payment was already recorded.' : `Collected ${money(amount)} by ${method.toUpperCase()}. Receipt: ${payment.receiptNumber}`);
+    await openCheckoutPreview(checkoutPreviewState.stayId);
+    if (typeof loadDashboardData === 'function') loadDashboardData();
+  } catch (err) {
+    alert(err.message);
+    await openCheckoutPreview(checkoutPreviewState.stayId);
+  }
+}
+
 async function completeCheckout() {
   if (!checkoutPreviewState) return;
   const preview = checkoutPreviewState.preview;
@@ -451,7 +506,7 @@ async function completeCheckout() {
     return alert('Confirm the checkout bill before completing checkout.');
   }
   if (preview.totals.balance_due > 0.004) {
-    return alert(`Settle the outstanding balance of ${money(preview.totals.balance_due)} before checkout.`);
+    return alert(`Collect the outstanding amount of ${money(preview.totals.balance_due)} using Cash, UPI or Card before checkout.`);
   }
   let refundAcknowledged = false;
   if (preview.totals.refund_due > 0.004) {
