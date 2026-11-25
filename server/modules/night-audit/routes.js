@@ -93,7 +93,7 @@ router.post('/run', authenticateToken, requireRoles('admin', 'general_manager', 
     await db.transaction(async () => {
       // 1. Find all active occupied stays
       const occupiedStays = await db.all(
-        `SELECT s.id as stay_id, s.nightly_rate, s.room_id, r.room_number, rt.tax_rate, f.id as folio_id
+        `SELECT s.id as stay_id, s.nightly_rate, s.room_id, s.adults, s.children, r.room_number, rt.tax_rate, f.id as folio_id
          FROM stays s
          JOIN rooms r ON s.room_id = r.id
          JOIN room_types rt ON r.room_type_id = rt.id
@@ -122,6 +122,19 @@ router.post('/run', authenticateToken, requireRoles('admin', 'general_manager', 
            WHERE id = ?`,
           [total, total, st.folio_id]
         );
+
+        const localTax = await db.get('SELECT local_tax_enabled, local_tax_name, local_tax_amount FROM properties WHERE id = ?', [req.user.property_id]);
+        if (localTax && Number(localTax.local_tax_enabled) === 1 && Number(localTax.local_tax_amount) > 0) {
+          const people = Number(st.adults || 1) + Number(st.children || 0);
+          const localAmount = Number(localTax.local_tax_amount) * people;
+          await db.run(
+            `INSERT INTO folio_entries
+             (id, folio_id, date, department, description, quantity, unit_price, tax_rate, tax_amount, total_amount, created_by)
+             VALUES (?, ?, ?, 'local_tax', ?, ?, ?, 0, 0, ?, ?)`,
+            [uuidv4(), st.folio_id, currentBizDate, `${localTax.local_tax_name || 'Local Tax'} - Night charge`, people, Number(localTax.local_tax_amount), localAmount, req.user.id]
+          );
+          await db.run('UPDATE folios SET total_charges = total_charges + ?, balance = balance + ? WHERE id = ?', [localAmount, localAmount, st.folio_id]);
+        }
 
         roomsCharged++;
         totalRoomRevenue += rate;
