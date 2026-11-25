@@ -463,7 +463,7 @@ async function collectCheckoutPayment(method) {
   const token = localStorage.getItem('nexuzy_token');
   const payKey = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + '-' + method);
   try {
-    const rounded = preview.rounding_enabled ? Math.round(Number(preview.totals.balance_due)) : Number(preview.totals.balance_due);
+    const rounded = preview.rounding_enabled ? Math.max(1, Math.round(Number(preview.totals.balance_due))) : Number(preview.totals.balance_due);
     const difference = Number((rounded - Number(preview.totals.balance_due)).toFixed(2));
     if (Math.abs(difference) >= 0.005) {
       const adjustmentKey = `checkout-rounding-${checkoutPreviewState.stayId}-${payKey}`;
@@ -475,7 +475,7 @@ async function collectCheckoutPayment(method) {
           quantity: 1,
           unit_price: difference,
           tax_rate: 0,
-          department: 'discount',
+          department: difference < 0 ? 'discount' : 'other',
           idempotency_key: adjustmentKey
         })
       });
