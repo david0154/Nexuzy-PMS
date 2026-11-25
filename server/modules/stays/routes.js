@@ -155,7 +155,7 @@ router.post('/check-in-reservation', authenticateToken, async (req, res) => {
       );
 
       // 2. Create Folio
-      const taxRate = resv.tax_rate || 12.0;
+      const taxRate = Number(resv.tax_rate ?? 12.0);
       const taxAmt = Math.round(resv.rate_per_night * (taxRate / 100));
       const totalNightCharge = resv.rate_per_night + taxAmt;
       const deposit = resv.deposit_paid || 0;
@@ -256,7 +256,7 @@ router.post('/walk-in', authenticateToken, async (req, res) => {
       );
 
       // 3. Create Folio & post initial charge
-      const taxRate = room.tax_rate || 12.0;
+      const taxRate = Number(room.tax_rate ?? 12.0);
       const taxAmt = Math.round(rate_per_night * (taxRate / 100));
       const totalNightCharge = Number(rate_per_night) + taxAmt;
       const deposit = Number(deposit_paid) || 0;
