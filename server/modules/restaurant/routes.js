@@ -52,11 +52,13 @@ function validBookingTime(value) {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(String(value || ''));
 }
 
-async function validateMenuItems(conn, items) {
+async function validateMenuItems(conn, items, propertyId) {
+  const property = await conn.get('SELECT restaurant_tax_enabled, default_restaurant_tax_rate FROM properties WHERE id = ?', [propertyId]);
+  if (!property) throw new Error('Property settings not found');
   if (!Array.isArray(items) || !items.length) throw new Error('Order must contain at least one item');
   const lines = [];
   for (const item of items) {
-    const menuItem = await conn.get('SELECT * FROM menu_items WHERE id = ?', [item.menu_item_id]);
+    const menuItem = await conn.get('SELECT * FROM menu_items WHERE id = ? AND property_id = ?', [item.menu_item_id, propertyId]);
     if (!menuItem) throw new Error(`Menu item ${item.menu_item_id} not found`);
     if (menuItem.is_available === 0) throw new Error(`${menuItem.name} is currently unavailable`);
     const quantity = Number(item.quantity);
@@ -65,7 +67,9 @@ async function validateMenuItems(conn, items) {
     // Prices and tax rates are authoritative on the server. A client cannot
     // reduce a charge by editing the request payload.
     const unitPrice = round2(menuItem.price);
-    const taxRate = Number(menuItem.tax_rate || 5);
+    const taxRate = Number(property.restaurant_tax_enabled) === 1
+      ? Number(menuItem.tax_rate !== null && menuItem.tax_rate !== undefined ? menuItem.tax_rate : property.default_restaurant_tax_rate)
+      : 0;
     const lineSub = round2(quantity * unitPrice);
     const lineTax = round2(lineSub * (taxRate / 100));
     const addons = Array.isArray(item.addons) ? item.addons : [];
@@ -355,7 +359,7 @@ router.post('/orders', authenticateToken, requireRoles(...SERVICE_ROLES), async 
       }
     }
 
-    const lines = await validateMenuItems(db, items);
+    const lines = await validateMenuItems(db, items, req.user.property_id);
     const subtotal = round2(lines.reduce((s, l) => s + l.lineSub, 0));
     const taxAmount = round2(lines.reduce((s, l) => s + l.lineTax, 0));
     const totalAmount = round2(subtotal + taxAmount);
@@ -462,7 +466,7 @@ router.post('/orders/:id/items', authenticateToken, requireRoles(...SERVICE_ROLE
       return res.status(400).json({ success: false, error: `Cannot add items to a ${order.status} order` });
     }
 
-    const lines = await validateMenuItems(db, req.body.items);
+    const lines = await validateMenuItems(db, req.body.items, req.user.property_id);
     const subtotal = round2(lines.reduce((s, l) => s + l.lineSub, 0));
     const taxAmount = round2(lines.reduce((s, l) => s + l.lineTax, 0));
 
