@@ -12,6 +12,7 @@ const { normalizePhone, whatsappUrl, formatMoney } = require('../../services/wha
 const SERVICE_ROLES = ['admin', 'general_manager', 'front_desk', 'cashier', 'captain', 'waiter'];
 const APPROVER_ROLES = ['admin', 'general_manager'];
 const PAYMENT_METHODS = ['cash', 'card', 'upi', 'bank_transfer', 'netbanking'];
+
 const PAYMENT_MODE_LABELS = { cash: 'Cash', card: 'Card', upi: 'UPI', bank_transfer: 'Bank transfer', netbanking: 'Net banking' };
 const BOOKING_ACTIVE_STATUSES = ['pending', 'confirmed', 'seated'];
 const STATIONS = ['kitchen', 'bar', 'bakery'];
