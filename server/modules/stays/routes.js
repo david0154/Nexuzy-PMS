@@ -594,6 +594,44 @@ router.post('/:id/room-move', authenticateToken, async (req, res) => {
   }
 });
 
+// Generate a rotating, stay-bound public guest QR. The raw token is only shown in this response.
+const crypto = require('crypto');
+const QRCode = require('qrcode');
+
+router.get('/:id/guest-qr', authenticateToken, requireRoles(...CHECKOUT_ROLES), async (req, res) => {
+  try {
+    const stay = await db.get(
+      `SELECT s.id, s.property_id, s.status, r.room_number
+       FROM stays s JOIN rooms r ON r.id = s.room_id
+       WHERE s.id = ? AND s.property_id = ?`,
+      [req.params.id, req.user.property_id]
+    );
+    if (!stay || stay.status !== 'occupied') {
+      return res.status(404).json({ success: false, error: 'Active checked-in stay not found.' });
+    }
+
+    const lan = await require('../network/service').status();
+    if (!lan.enabled) {
+      return res.status(409).json({ success: false, error: 'Enable LAN access in Settings before generating guest room QR codes.' });
+    }
+    const advertised = lan.addresses.find(a => a.address === lan.primary_address) || lan.addresses[0];
+    if (!advertised) return res.status(409).json({ success: false, error: 'No private hotel LAN address is available.' });
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    await db.transaction(async (conn) => {
+      await conn.run('UPDATE guest_qr_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE stay_id = ? AND revoked_at IS NULL', [stay.id]);
+      await conn.run('INSERT INTO guest_qr_tokens (id, property_id, stay_id, token_hash) VALUES (?, ?, ?, ?)', [uuidv4(), stay.property_id, stay.id, tokenHash]);
+    });
+
+    const url = `http://${advertised.address}:${lan.port}/guest-order.html?token=${token}`;
+    const dataUrl = await QRCode.toDataURL(url, { margin: 1, width: 320 });
+    res.json({ success: true, room_number: stay.room_number, url, data_url: dataUrl });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // GET /api/v1/stays/:id/whatsapp — pre-filled WhatsApp message for the final bill
 router.get('/:id/whatsapp', authenticateToken, requireRoles(...CHECKOUT_ROLES), async (req, res) => {
   try {
@@ -625,7 +663,7 @@ router.get('/:id/whatsapp', authenticateToken, requireRoles(...CHECKOUT_ROLES), 
     ].filter(Boolean);
     if (preview.property.upi_id) lines.push(`Pay by UPI: ${preview.property.upi_id}`);
     if (preview.property.phone) lines.push(`Hotel contact: ${preview.property.phone}`);
-    lines.push('', 'Your PDF bill is attached. Thank you for staying with us.');
+    lines.push('', 'The checkout PDF bill can be downloaded from the hotel checkout screen and attached before sending. Thank you for staying with us.');
 
     const message = lines.join('\n');
     res.json({ success: true, phone, message, url: whatsappUrl(phone, message) });
