@@ -187,6 +187,18 @@ router.post('/check-in-reservation', authenticateToken, async (req, res) => {
       }
 
       // Link any prior deposit payments to this folio
+      const localTax = await db.get('SELECT local_tax_enabled, local_tax_name, local_tax_amount FROM properties WHERE id = ?', [req.user.property_id]);
+      const people = Number(req.body.adults || 1) + Number(req.body.children || 0);
+      if (localTax && Number(localTax.local_tax_enabled) === 1 && Number(localTax.local_tax_amount) > 0) {
+        const localAmount = Number(localTax.local_tax_amount) * people;
+        await db.run(
+          `INSERT INTO folio_entries (id, folio_id, date, department, description, quantity, unit_price, tax_rate, tax_amount, total_amount, created_by)
+           VALUES (?, ?, date('now'), 'local_tax', ?, ?, ?, 0, 0, ?, ?)`,
+          [uuidv4(), folioId, `${localTax.local_tax_name || 'Local Tax'} - Night 1`, people, Number(localTax.local_tax_amount), localAmount, req.user.id]
+        );
+        await db.run('UPDATE folios SET total_charges = total_charges + ?, balance = balance + ? WHERE id = ?', [localAmount, localAmount, folioId]);
+      }
+
       if (deposit > 0) {
         await db.run('UPDATE payments SET folio_id = ? WHERE reservation_id = ?', [folioId, reservation_id]);
       }
