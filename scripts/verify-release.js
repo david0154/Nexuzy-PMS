@@ -9,9 +9,17 @@ const root = path.join(__dirname, '..');
 const pkg = require(path.join(root, 'package.json'));
 const problems = [];
 
-const tag = process.env.GITHUB_REF_NAME || process.env.RELEASE_TAG;
-if (tag && tag !== `v${pkg.version}`) {
-  problems.push(`Tag ${tag} does not match package.json version v${pkg.version}`);
+// Validate version tags for release builds only. On pull_request workflows,
+// GITHUB_REF_NAME is a synthetic value such as "2/merge", not a release tag.
+const githubRef = process.env.GITHUB_REF || '';
+const githubEvent = process.env.GITHUB_EVENT_NAME || '';
+const releaseTag = githubRef.startsWith('refs/tags/')
+  ? githubRef.slice('refs/tags/'.length)
+  : (githubEvent === 'push' && /^v\\d/.test(process.env.GITHUB_REF_NAME || '')
+    ? process.env.GITHUB_REF_NAME
+    : process.env.RELEASE_TAG || '');
+if (releaseTag && releaseTag !== `v${pkg.version}`) {
+  problems.push(`Tag ${releaseTag} does not match package.json version v${pkg.version}`);
 }
 
 const required = ['server/index.js', 'server/app.js', 'public/index.html', 'install.bat', 'start.bat', 'README.md'];
