@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="same-origin">
+<title>Guest Dining · Nexuzy PMS</title>
+<style>
+:root{color-scheme:dark;font-family:Inter,system-ui,sans-serif;background:#0b1120;color:#f8fafc}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#16213a,#0b1120 50%);min-height:100vh}.wrap{max-width:900px;margin:auto;padding:24px 16px 60px}.card{background:#111b2e;border:1px solid #273449;border-radius:18px;padding:18px;margin:14px 0}.muted{color:#9caec6;font-size:13px}.title{font-weight:800;font-size:26px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.item{border:1px solid #34445d;border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px}.btn{border:0;border-radius:10px;background:#4f46e5;color:white;padding:11px 14px;font-weight:700;cursor:pointer}.btn.alt{background:#26364f}.btn:disabled{opacity:.4;cursor:not-allowed}.row{display:flex;justify-content:space-between;align-items:center;gap:10px}.qty{display:flex;align-items:center;gap:10px}.qty button{border:1px solid #43536e;background:#1d2b43;color:#fff;border-radius:8px;width:30px;height:30px}.pill{font-size:11px;background:#253751;color:#cbd5e1;padding:4px 8px;border-radius:20px}.tabs{display:flex;gap:8px;flex-wrap:wrap}.tabs button{flex:1;min-width:120px}.line{padding:10px 0;border-bottom:1px solid #26364f}.money{font-variant-numeric:tabular-nums}.danger{color:#fda4af}input,textarea{background:#0c1629;color:#fff;border:1px solid #394a64;border-radius:10px;padding:10px;width:100%}@media(max-width:500px){.title{font-size:21px}.wrap{padding:14px 12px 40px}.card{padding:14px}}
+</style>
+</head>
+<body>
+<main class="wrap">
+ <header class="card">
+  <div class="row"><div><div class="pill">NEXUZY PMS · GUEST PORTAL</div><h1 class="title" id="hotel">Welcome</h1><p id="welcome" class="muted">Loading your room menu…</p></div><div class="pill" id="room">ROOM —</div></div>
+ </header>
+ <nav class="tabs">
+  <button class="btn" id="tab-menu" onclick="showTab('menu')">Restaurant Menu</button>
+  <button class="btn alt" id="tab-bill" onclick="showTab('bill')">My Room Bill</button>
+ </nav>
+ <section id="menu-panel">
+  <div class="card"><div class="row"><div><h2>Order from your room</h2><p class="muted">Items are prepared by the restaurant and charged to your room folio.</p></div><button class="btn alt" onclick="loadMenu()">Refresh</button></div></div>
+  <div id="menu-content"></div>
+  <div class="card">
+   <h3>Your order</h3><div id="cart-content" class="muted">No items selected.</div>
+   <label class="muted" for="order-notes">Special instructions</label><textarea id="order-notes" rows="2" placeholder="Allergies or kitchen instructions (optional)"></textarea>
+   <div class="row" style="margin-top:12px"><strong class="money" id="cart-total">₹0.00</strong><button class="btn" id="submit-order" onclick="submitOrder()" disabled>Place order</button></div>
+   <p class="muted">By placing the order, the total will be added to the bill for this checked-in room.</p>
+  </div>
+ </section>
+ <section id="bill-panel" hidden>
+  <div class="card"><div class="row"><h2>My room bill</h2><button class="btn alt" onclick="loadBill()">Refresh bill</button></div><div id="bill-content" class="muted">Loading…</div></div>
+ </section>
+ <div id="status" class="muted" role="status" aria-live="polite"></div>
+</main>
+<script>
+const token=new URLSearchParams(location.search).get('token')||'';
+const apiBase='/api/v1/restaurant/guest/'+encodeURIComponent(token);
+let menuData=null, cart=new Map(), taxIncluded=false, submitting=false;
+const $=id=>document.getElementById(id);
+const money=n=>'₹'+Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function get(path,opts={}){const r=await fetch(apiBase+path,{...opts,headers:{'Content-Type':'application/json',...(opts.headers||{})}});const d=await r.json();if(!r.ok)throw new Error(d.error||'Request failed');return d}
+function showTab(name){$('menu-panel').hidden=name!=='menu';$('bill-panel').hidden=name!=='bill';$('tab-menu').className=name==='menu'?'btn':'btn alt';$('tab-bill').className=name==='bill'?'btn':'btn alt';if(name==='bill')loadBill()}
+async function init(){if(!token){$('status').textContent='This room QR is incomplete. Please scan the QR displayed by reception.';return}try{menuData=await get('/menu');$('hotel').textContent=menuData.hotel;$('welcome').textContent='Hello '+menuData.guest+' · Orders are billed to your room';$('room').textContent='ROOM '+menuData.room;taxIncluded=menuData.tax_included;renderMenu()}catch(e){$('status').textContent=e.message;$('menu-panel').hidden=true;$('tab-menu').disabled=true;$('tab-bill').disabled=true}}
+function renderMenu(){const root=$('menu-content'),cats=menuData.categories||[];root.innerHTML=cats.map(cat=>{const items=menuData.items.filter(x=>x.category_id===cat.id);if(!items.length)return'';return '<div class="card"><h2>'+esc(cat.name)+'</h2><div class="grid">'+items.map(it=>'<article class="item"><strong>'+esc(it.name)+'</strong><span class="muted">'+esc(it.description||it.unit||'')+'</span><span class="money">'+money(it.price)+'</span><div class="row"><span class="pill">'+(taxIncluded?'Tax configured':'Tax-free menu')+'</span><div class="qty"><button onclick="changeQty(\''+it.id+'\',-1)">−</button><span id="q-'+it.id+'">'+(cart.get(it.id)?.quantity||0)+'</span><button onclick="changeQty(\''+it.id+'\',1)">+</button></div></div></article>').join('')+'</div></div>'}).join('')}
+function changeQty(id,delta){const item=menuData.items.find(x=>x.id===id);const current=cart.get(id)||{quantity:0};current.quantity=Math.max(0,Math.min(50,current.quantity+delta));if(current.quantity)cart.set(id,current);else cart.delete(id);const count=$('q-'+id);if(count)count.textContent=current.quantity;renderCart()}
+function renderCart(){const lines=[...cart.entries()].map(([id,v])=>{const it=menuData.items.find(x=>x.id===id);return {...it,...v}});$('cart-content').innerHTML=lines.length?lines.map(x=>'<div class="line row"><span>'+esc(x.name)+' × '+x.quantity+'</span><strong>'+money(x.price*x.quantity)+'</strong></div>').join(''):'No items selected.';const total=lines.reduce((n,x)=>n+x.price*x.quantity,0);$('cart-total').textContent=money(total)+(taxIncluded?' + configured tax':'');$('submit-order').disabled=!lines.length||submitting}
+async function submitOrder(){if(submitting||!cart.size)return;submitting=true;renderCart();try{const key=crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random();const items=[...cart.entries()].map(([menu_item_id,v])=>({menu_item_id,quantity:v.quantity,notes:$('order-notes').value.trim()}));const res=await get('/orders',{method:'POST',body:JSON.stringify({items,idempotency_key:key})});cart.clear();$('order-notes').value='';renderCart();$('status').textContent='Order '+res.orderNumber+' placed successfully. Amount '+money(res.totalAmount)+' added to your room bill. Kitchen has received it.';await loadBill()}catch(e){$('status').textContent=e.message}finally{submitting=false;renderCart()}}
+async function loadBill(){try{const b=await get('/bill');$('bill-content').innerHTML='<div class="grid"><div class="card"><div class="muted">Room charges</div><strong>'+money(b.room_charges)+'</strong></div><div class="card"><div class="muted">Restaurant charges</div><strong>'+money(b.restaurant_charges)+'</strong></div><div class="card"><div class="muted">Other charges</div><strong>'+money(b.other_charges-b.restaurant_charges)+'</strong></div><div class="card"><div class="muted">Advance / payments</div><strong>'+money(b.paid)+'</strong></div></div><div class="card"><div class="row"><span>Folio '+esc(b.folio_number)+'</span><span class="pill">Room '+esc(b.room)+'</span></div>'+b.charges.map(x=>'<div class="line row"><span>'+esc(x.date)+' · '+esc(x.description)+'</span><strong>'+money(x.amount)+'</strong></div>').join('')+'<div class="line row"><strong>Total charges</strong><strong>'+money(b.total)+'</strong></div><div class="line row"><span>Advance / payments received</span><strong>'+money(b.paid)+'</strong></div><div class="line row"><strong>Amount payable</strong><strong class="money '+(b.balance_due>0?'danger':'')+'">'+money(b.balance_due)+'</strong></div></div>'}catch(e){$('bill-content').textContent=e.message}}
+init();
+</script>
+</body>
+</html>
