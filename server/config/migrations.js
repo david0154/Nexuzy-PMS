@@ -10,7 +10,12 @@ const COLUMNS = {
     ['advance_percentage', 'REAL DEFAULT 30.0'],
     ['advance_due_days', 'INTEGER DEFAULT 3'],
     ['invoice_prefix', "TEXT DEFAULT 'INV'"],
-    ['phone_country_code', "TEXT DEFAULT '91'"]
+    ['phone_country_code', "TEXT DEFAULT '91'"],
+    ['restaurant_tax_enabled', 'INTEGER DEFAULT 0'],
+    ['rounding_enabled', 'INTEGER DEFAULT 1'],
+    ['local_tax_enabled', 'INTEGER DEFAULT 0'],
+    ['local_tax_name', "TEXT DEFAULT 'Local Tax'"],
+    ['local_tax_amount', 'REAL DEFAULT 0']
   ],
   reservations: [
     ['confirmation_required', 'INTEGER DEFAULT 0'],
