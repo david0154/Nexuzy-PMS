@@ -194,6 +194,7 @@ async function buildCheckoutPreview(conn, stayId) {
             p.name AS property_name, p.address AS property_address, p.city AS property_city,
             p.state AS property_state, p.gstin AS property_gstin, p.phone AS property_phone,
             p.email AS property_email, p.currency_symbol, p.default_room_tax_rate,
+            p.restaurant_tax_enabled, p.rounding_enabled,
             p.logo_url, p.upi_id, p.phone_country_code,
             res.booking_reference
      FROM stays s
@@ -309,7 +310,8 @@ async function buildCheckoutPreview(conn, stayId) {
       currency_symbol: stay.currency_symbol || '₹',
       logo_url: stay.logo_url,
       upi_id: stay.upi_id,
-      phone_country_code: stay.phone_country_code
+      phone_country_code: stay.phone_country_code,
+      rounding_enabled: Number(stay.rounding_enabled) === 1
     },
     folio: {
       id: stay.folio_id,
