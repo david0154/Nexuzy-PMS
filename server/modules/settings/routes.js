@@ -42,9 +42,22 @@ router.patch('/property', authenticateToken, requireRoles('admin'), async (req, 
       bank_name, bank_account_number, bank_ifsc, bank_branch,
       upi_id, upi_name, default_room_tax_rate, default_restaurant_tax_rate,
       require_advance_for_confirmation, advance_percentage, advance_due_days, invoice_prefix,
-      phone_country_code
+      phone_country_code, restaurant_tax_enabled, rounding_enabled,
+      local_tax_enabled, local_tax_name, local_tax_amount
     } = req.body;
 
+    if (local_tax_amount !== undefined && (!Number.isFinite(Number(local_tax_amount)) || Number(local_tax_amount) < 0 || Number(local_tax_amount) > 100000)) {
+      return res.status(400).json({ success: false, error: 'Local tax amount must be between 0 and 100000.' });
+    }
+    if (local_tax_name !== undefined && String(local_tax_name).trim().length > 80) {
+      return res.status(400).json({ success: false, error: 'Local tax name must be 80 characters or fewer.' });
+    }
+    if (default_room_tax_rate !== undefined && (!Number.isFinite(Number(default_room_tax_rate)) || Number(default_room_tax_rate) < 0 || Number(default_room_tax_rate) > 28)) {
+      return res.status(400).json({ success: false, error: 'Room GST must be between 0 and 28 percent.' });
+    }
+    if (default_restaurant_tax_rate !== undefined && (!Number.isFinite(Number(default_restaurant_tax_rate)) || Number(default_restaurant_tax_rate) < 0 || Number(default_restaurant_tax_rate) > 28)) {
+      return res.status(400).json({ success: false, error: 'Restaurant GST must be between 0 and 28 percent.' });
+    }
     const prop = await db.get('SELECT id FROM properties LIMIT 1');
     if (!prop) return res.status(404).json({ success: false, error: 'Property not found' });
 
@@ -74,7 +87,12 @@ router.patch('/property', authenticateToken, requireRoles('admin'), async (req, 
            advance_percentage = COALESCE(?, advance_percentage),
            advance_due_days = COALESCE(?, advance_due_days),
            invoice_prefix = COALESCE(?, invoice_prefix),
-           phone_country_code = COALESCE(?, phone_country_code)
+           phone_country_code = COALESCE(?, phone_country_code),
+           restaurant_tax_enabled = COALESCE(?, restaurant_tax_enabled),
+           rounding_enabled = COALESCE(?, rounding_enabled),
+           local_tax_enabled = COALESCE(?, local_tax_enabled),
+           local_tax_name = COALESCE(?, local_tax_name),
+           local_tax_amount = COALESCE(?, local_tax_amount)
        WHERE id = ?`,
       [
         name, gstin, address, city, state, country, phone, email,
@@ -84,6 +102,11 @@ router.patch('/property', authenticateToken, requireRoles('admin'), async (req, 
         require_advance_for_confirmation === undefined ? null : (require_advance_for_confirmation ? 1 : 0),
         advance_percentage, advance_due_days, invoice_prefix,
         phone_country_code,
+        restaurant_tax_enabled === undefined ? null : (restaurant_tax_enabled ? 1 : 0),
+        rounding_enabled === undefined ? null : (rounding_enabled ? 1 : 0),
+        local_tax_enabled === undefined ? null : (local_tax_enabled ? 1 : 0),
+        local_tax_name === undefined ? null : String(local_tax_name).trim(),
+        local_tax_amount === undefined ? null : Number(local_tax_amount),
         prop.id
       ]
     );
