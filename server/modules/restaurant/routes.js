@@ -165,7 +165,8 @@ router.get('/guest/:token/bill', async (req, res) => {
       charges: preview.entries.map(e => ({ date:e.date, department:e.department, description:e.description, quantity:e.quantity, amount:e.total_amount })),
       payments: preview.payments.map(p => ({ date:p.created_at, method:p.payment_method, amount:p.amount })),
       room_charges: preview.totals.room_charges, restaurant_charges: preview.restaurant.posted_total,
-      other_charges: preview.totals.other_charges, paid: preview.totals.total_payments, balance_due: preview.totals.balance_due,
+      other_charges: round2(preview.totals.gross_charges - preview.totals.room_charges - preview.restaurant.posted_total),
+      paid: preview.totals.total_payments, balance_due: preview.totals.balance_due,
       total: preview.totals.gross_charges, currency_symbol: preview.property.currency_symbol });
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
