@@ -104,7 +104,7 @@ router.post('/run', authenticateToken, requireRoles('admin', 'general_manager', 
       // 2. Post daily room rent and tax to each folio
       for (const st of occupiedStays) {
         const rate = st.nightly_rate;
-        const taxRate = st.tax_rate || 12.0;
+        const taxRate = Number(st.tax_rate ?? 12.0);
         const taxAmt = Math.round(rate * (taxRate / 100));
         const total = rate + taxAmt;
 
