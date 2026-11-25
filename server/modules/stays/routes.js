@@ -515,7 +515,10 @@ router.post('/:id/check-out', authenticateToken, requireRoles(...CHECKOUT_ROLES)
 
     const checkOutTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
     await db.transaction(async (conn) => {
-      await conn.run('UPDATE guest_qr_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE stay_id = ? AND revoked_at IS NULL', [id]);
+      const qrTokens = await conn.all('SELECT id FROM guest_qr_tokens WHERE stay_id = ? AND revoked_at IS NULL', [id]);
+      for (const token of qrTokens) {
+        await conn.run('UPDATE guest_qr_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE id = ?', [token.id]);
+      }
       await conn.run(
         "UPDATE stays SET status = 'checked_out', actual_check_out_time = ?, checked_out_by = ? WHERE id = ?",
         [checkOutTime, req.user.id, id]
