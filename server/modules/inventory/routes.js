@@ -11,8 +11,9 @@ router.get('/items', authenticateToken, async (req, res) => {
     const items = await db.all(
       `SELECT *,
               CASE WHEN current_stock <= min_stock THEN 1 ELSE 0 END as is_low_stock
-       FROM stock_items 
-       ORDER BY category ASC, name ASC`
+       FROM stock_items WHERE property_id = ?
+       ORDER BY category ASC, name ASC`,
+      [req.user.property_id]
     );
     res.json({ success: true, items });
   } catch (err) {
@@ -28,11 +29,20 @@ router.post('/items', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Name, category and unit are required' });
     }
 
+    const initial = Number(current_stock);
+    const minimum = Number(min_stock);
+    const cost = Number(cost_price);
+    if (![initial, minimum, cost].every(Number.isFinite) || initial < 0 || minimum < 0 || cost < 0) {
+      return res.status(400).json({ success: false, error: 'Stock, minimum level and cost must be valid non-negative numbers' });
+    }
+    const duplicate = await db.get('SELECT id FROM stock_items WHERE property_id = ? AND name = ? COLLATE NOCASE', [req.user.property_id, String(name).trim()]);
+    if (duplicate) return res.status(409).json({ success: false, error: 'An inventory item with this name already exists' });
+
     const id = uuidv4();
     await db.run(
       `INSERT INTO stock_items (id, property_id, name, category, unit, current_stock, min_stock, cost_price, reorder_level)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, req.user.property_id, name, category, unit, Number(current_stock), Number(min_stock), Number(cost_price), Number(min_stock) * 1.5]
+      [id, req.user.property_id, String(name).trim(), category, unit, initial, minimum, cost, minimum * 1.5]
     );
 
     res.json({ success: true, message: 'Stock item added', id });
@@ -47,21 +57,22 @@ router.post('/movements', authenticateToken, async (req, res) => {
     const { stock_item_id, movement_type, quantity, reference, reason } = req.body;
 
     const qty = Number(quantity);
-    if (!stock_item_id || !movement_type || !qty || qty <= 0) {
+    if (!stock_item_id || !['receipt', 'issue', 'wastage', 'adjustment'].includes(movement_type) || !Number.isFinite(qty) || qty <= 0) {
       return res.status(400).json({ success: false, error: 'Valid item, movement type, and quantity required' });
     }
 
-    const item = await db.get('SELECT * FROM stock_items WHERE id = ?', [stock_item_id]);
+    const item = await db.get('SELECT * FROM stock_items WHERE id = ? AND property_id = ?', [stock_item_id, req.user.property_id]);
     if (!item) return res.status(404).json({ success: false, error: 'Stock item not found' });
 
     let stockDelta = qty;
     if (movement_type === 'issue' || movement_type === 'wastage') {
       stockDelta = -qty;
-      if (item.current_stock < qty) {
+      if (Number(item.current_stock) < qty) {
         return res.status(400).json({ success: false, error: `Insufficient stock. Current: ${item.current_stock} ${item.unit}` });
       }
     }
 
+    if (movement_type === 'adjustment') stockDelta = qty - Number(item.current_stock);
     const movId = uuidv4();
 
     await db.transaction(async () => {
