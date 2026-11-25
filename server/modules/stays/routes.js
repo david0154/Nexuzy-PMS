@@ -656,6 +656,44 @@ router.get('/:id/guest-qr', authenticateToken, requireRoles(...CHECKOUT_ROLES), 
   }
 });
 
+// Preview PDF for the current stay folio. WhatsApp cannot receive an automatic attachment
+// from a wa.me link, so the staff UI downloads this file before opening WhatsApp.
+const { sendInvoicePdf } = require('../../services/pdf');
+router.get('/:id/checkout/pdf', authenticateToken, requireRoles(...CHECKOUT_ROLES), async (req, res) => {
+  try {
+    const preview = await buildCheckoutPreview(db, req.params.id);
+    if (!preview) return res.status(404).json({ success: false, error: 'Stay not found' });
+    const t = preview.totals;
+    const payload = {
+      document_label: 'GUEST CHECKOUT BILL',
+      is_tax_invoice: false,
+      disclaimer: 'Checkout statement. Final tax invoice is issued after bill confirmation.',
+      date: new Date().toISOString(),
+      document_number: preview.folio.folio_number,
+      property: preview.property,
+      customer: preview.stay.guest,
+      stay_number: preview.stay.stay_number,
+      room_number: preview.stay.room_number,
+      items: preview.entries.map(e => ({
+        description: e.description,
+        quantity: e.quantity,
+        unit_price: e.unit_price,
+        tax_rate: e.tax_rate,
+        tax_amount: e.tax_amount,
+        total_amount: e.total_amount
+      })),
+      subtotal: t.net_charges,
+      total_tax: t.total_tax,
+      grand_total: t.gross_charges,
+      paid_amount: t.total_payments,
+      balance_due: t.balance_due
+    };
+    await sendInvoicePdf(res, payload, `Room-${preview.stay.room_number}-checkout.pdf`);
+  } catch (err) {
+    if (!res.headersSent) res.status(500).json({ success:false, error:err.message });
+  }
+});
+
 // GET /api/v1/stays/:id/whatsapp — pre-filled WhatsApp message for the final bill
 router.get('/:id/whatsapp', authenticateToken, requireRoles(...CHECKOUT_ROLES), async (req, res) => {
   try {
