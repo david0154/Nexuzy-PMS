@@ -186,10 +186,12 @@ router.post('/guest/:token/orders', async (req, res) => {
     await db.transaction(async (conn) => {
       const active = await conn.get("SELECT id FROM stays WHERE id = ? AND property_id = ? AND status = 'occupied'", [stay.id, stay.property_id]);
       if (!active) throw new Error('Guest stay is no longer active');
+      const folio = await conn.get("SELECT id, status FROM folios WHERE stay_id = ? AND status = 'open'", [stay.id]);
+      if (!folio) throw new Error('Guest folio is closed');
       await conn.run(
-        `INSERT INTO restaurant_orders (id, order_number, property_id, order_type, stay_id, room_id, status, subtotal, tax_amount, total_amount, guest_name, idempotency_key, payment_status, updated_at)
-         VALUES (?, ?, ?, 'room_service', ?, ?, 'active', ?, ?, ?, ?, ?, 'unpaid', CURRENT_TIMESTAMP)`,
-        [orderId, orderNo, stay.property_id, stay.id, stay.room_id, subtotal, taxAmount, totalAmount, stay.guest_name, key]
+        `INSERT INTO restaurant_orders (id, order_number, property_id, order_type, stay_id, room_id, status, subtotal, tax_amount, total_amount, guest_name, idempotency_key, payment_status, posted_folio_id, updated_at)
+         VALUES (?, ?, ?, 'room_service', ?, ?, 'posted_to_room', ?, ?, ?, ?, ?, 'posted_to_room', ?, CURRENT_TIMESTAMP)`,
+        [orderId, orderNo, stay.property_id, stay.id, stay.room_id, subtotal, taxAmount, totalAmount, stay.guest_name, key, folio.id]
       );
       for (const line of lines) {
         await conn.run(
@@ -198,23 +200,29 @@ router.post('/guest/:token/orders', async (req, res) => {
           [uuidv4(), orderId, line.menuItem.id, line.menuItem.name, line.quantity, line.unitPrice, line.taxRate, line.lineTax, line.total, line.notes, line.addonsJson]
         );
       }
-      const freshStay = await conn.get('SELECT id FROM stays WHERE id = ? AND status = \'occupied\'', [stay.id]);
-      if (!freshStay) throw new Error('Guest stay is no longer active');
-      const currentOrders = await conn.all("SELECT id FROM restaurant_orders WHERE stay_id = ? AND status = 'active'", [stay.id]);
-      const activeIds = [...currentOrders.map(o => o.id), orderId];
-      for (const id of activeIds) {
-        const newItems = await conn.all("SELECT * FROM order_items WHERE order_id = ? AND status = 'new' AND kot_id IS NULL", [id]);
-        if (!newItems.length) continue;
-        const station = newItems[0].station || 'kitchen';
-        const roundRow = await conn.get('SELECT COALESCE(MAX(round_number),0) AS round FROM kitchen_tickets WHERE order_id = ?', [id]);
-        const round = Number(roundRow.round || 0) + 1;
+      await conn.run(
+        `INSERT INTO folio_entries
+         (id, folio_id, date, department, description, quantity, unit_price, tax_rate, tax_amount, total_amount, reference_id, reference_type, idempotency_key)
+         VALUES (?, ?, date('now'), 'restaurant', ?, 1, ?, ?, ?, ?, ?, 'restaurant_order', ?)`,
+        [uuidv4(), folio.id, `Guest QR Restaurant Order ${orderNo}`, subtotal, subtotal > 0 ? round2(taxAmount / subtotal * 100) : 0, taxAmount, totalAmount, orderId, `qr-order:${orderId}`]
+      );
+      await recalcFolio(conn, folio.id);
+
+      const newItems = await conn.all("SELECT * FROM order_items WHERE order_id = ? AND status = 'new' AND kot_id IS NULL", [orderId]);
+      const grouped = new Map();
+      for (const item of newItems) {
+        const station = item.station || 'kitchen';
+        if (!grouped.has(station)) grouped.set(station, []);
+        grouped.get(station).push(item);
+      }
+      for (const [station, stationItems] of grouped.entries()) {
         const kotId = uuidv4();
         await conn.run(
           `INSERT INTO kitchen_tickets (id, kot_number, order_id, table_id, room_id, station, status, round_number, notes, created_by)
-           VALUES (?, ?, ?, NULL, ?, ?, 'preparing', ?, 'Guest room QR order', NULL)`,
-          [kotId, `KOT-${Date.now().toString().slice(-7)}`, id, stay.room_id, station, round]
+           VALUES (?, ?, ?, NULL, ?, ?, 'preparing', 1, 'Guest room QR order', NULL)`,
+          [kotId, `KOT-${Date.now().toString().slice(-7)}`, orderId, stay.room_id, station]
         );
-        for (const item of newItems) await conn.run("UPDATE order_items SET status = 'preparing', kot_id = ?, kot_round = ? WHERE id = ?", [kotId, round, item.id]);
+        for (const item of stationItems) await conn.run("UPDATE order_items SET status = 'preparing', kot_id = ?, kot_round = 1 WHERE id = ?", [kotId, item.id]);
       }
     });
     res.status(201).json({ success:true, message:'Order sent to the kitchen. The charge will appear on your room bill.', orderId, orderNumber:orderNo, totalAmount });
