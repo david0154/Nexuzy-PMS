@@ -121,6 +121,8 @@ function billPayload(order) {
 
 const crypto = require('crypto');
 
+// Stay-bound QR access uses a hashed random token. A guest is only able to
+// see and order against their own active stay and open room folio.
 async function guestStayFromToken(token) {
   if (!/^[a-f0-9]{64}$/i.test(String(token || ''))) return null;
   const tokenHash = crypto.createHash('sha256').update(String(token)).digest('hex');
