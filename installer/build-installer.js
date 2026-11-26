@@ -95,7 +95,9 @@ async function prepareNodeRuntime() {
     '-NoProfile',
     '-ExecutionPolicy', 'Bypass',
     '-Command',
-    `Expand-Archive -LiteralPath ${quote(zipPath)} -DestinationPath ${quote(extractDir)} -Force`
+    // No Write-Progress: PowerShell fails with ResourceUnavailable when the
+    // build output is redirected to a log instead of a console.
+    `$ProgressPreference = 'SilentlyContinue'; Expand-Archive -LiteralPath ${quote(zipPath)} -DestinationPath ${quote(extractDir)} -Force`
   ]);
 
   const extracted = path.join(extractDir, NODE_ZIP_NAME.replace(/\.zip$/i, ''));

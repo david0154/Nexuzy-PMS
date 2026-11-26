@@ -399,6 +399,133 @@ async function archiveMenuItem(id) {
 }
 
 // =========================================================
+// RESTAURANT TABLE MANAGEMENT
+// =========================================================
+let restaurantTableState = { tables: [], sections: [] };
+
+async function openRestaurantTableManager() {
+  openModal('modal-table-manager');
+  resetRestaurantTableForm();
+  await loadRestaurantTableManager();
+}
+
+async function loadRestaurantTableManager() {
+  try {
+    const data = await api('/restaurant/tables/manage');
+    restaurantTableState = { tables: data.tables || [], sections: data.sections || [] };
+    renderRestaurantTableManager();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+function renderRestaurantTableManager() {
+  const list = document.getElementById('restaurant-tables-list');
+  const datalist = document.getElementById('table-section-options');
+  if (datalist) {
+    datalist.innerHTML = restaurantTableState.sections.map(s => `<option value="${adminEscape(s)}"></option>`).join('');
+  }
+
+  const tables = restaurantTableState.tables;
+  if (!tables.length) {
+    list.innerHTML = '<div class="text-slate-500 p-3">No tables yet. Add the first table above.</div>';
+    return;
+  }
+
+  list.innerHTML = tables.map(t => {
+    const active = t.is_active === undefined || t.is_active === null ? true : Number(t.is_active) === 1;
+    const orderBadge = t.current_order_id
+      ? `<span class="ml-1 text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">OPEN ${adminEscape(t.order_number || '')}</span>`
+      : '';
+    const archivedBadge = active ? '' : '<span class="ml-1 text-[9px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">DELETED</span>';
+    return `
+    <div class="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-800/50 border border-slate-700 rounded-lg ${active ? '' : 'opacity-60'}">
+      <div class="min-w-0">
+        <div class="font-bold text-white">Table ${adminEscape(t.table_number)}${orderBadge}${archivedBadge}</div>
+        <div class="text-[10px] text-slate-400">${adminEscape(t.section || 'Main Dining')} · ${t.capacity} seats · ${adminEscape(t.status || 'available')}${Number(t.order_count) ? ` · ${t.order_count} past order(s)` : ''}</div>
+      </div>
+      <div class="flex gap-1">
+        <button onclick="editRestaurantTable('${t.id}')" class="px-2 py-1 rounded bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 text-[10px]">Edit</button>
+        ${active
+          ? `<button onclick="deleteRestaurantTable('${t.id}')" class="px-2 py-1 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-[10px]">Delete</button>`
+          : `<button onclick="restoreRestaurantTable('${t.id}')" class="px-2 py-1 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-[10px]">Restore</button>`}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function resetRestaurantTableForm() {
+  const form = document.getElementById('form-restaurant-table');
+  if (!form) return;
+  form.reset();
+  document.getElementById('table-record-id').value = '';
+  document.getElementById('table-capacity').value = '4';
+  document.getElementById('table-section').value = 'Main Dining';
+}
+
+function editRestaurantTable(id) {
+  const table = restaurantTableState.tables.find(t => t.id === id);
+  if (!table) return;
+  document.getElementById('table-record-id').value = table.id;
+  document.getElementById('table-number').value = table.table_number || '';
+  document.getElementById('table-capacity').value = table.capacity || 4;
+  document.getElementById('table-section').value = table.section || 'Main Dining';
+  const form = document.getElementById('form-restaurant-table');
+  if (form && form.scrollIntoView) form.scrollIntoView({ block: 'nearest' });
+}
+
+async function refreshRestaurantFloor() {
+  await loadRestaurantTableManager();
+  if (typeof loadRestaurantPosData === 'function') loadRestaurantPosData();
+  if (typeof loadRestaurantBookings === 'function') loadRestaurantBookings();
+}
+
+async function handleRestaurantTableSubmit(event) {
+  event.preventDefault();
+  const id = document.getElementById('table-record-id').value;
+  const payload = {
+    table_number: document.getElementById('table-number').value.trim(),
+    capacity: Number(document.getElementById('table-capacity').value),
+    section: document.getElementById('table-section').value.trim() || 'Main Dining'
+  };
+  if (!payload.table_number) return alert('Table number is required');
+  try {
+    const res = await api(id ? `/restaurant/tables/${id}` : '/restaurant/tables', {
+      method: id ? 'PATCH' : 'POST',
+      body: JSON.stringify(payload)
+    });
+    resetRestaurantTableForm();
+    await refreshRestaurantFloor();
+    if (!id) alert(res.message);
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function deleteRestaurantTable(id) {
+  const table = restaurantTableState.tables.find(t => t.id === id);
+  if (!table) return;
+  if (!confirm(`Remove table ${table.table_number} from the POS floor?`)) return;
+  try {
+    const res = await api(`/restaurant/tables/${id}`, { method: 'DELETE' });
+    await refreshRestaurantFloor();
+    alert(res.message);
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function restoreRestaurantTable(id) {
+  try {
+    const res = await api(`/restaurant/tables/${id}`, { method: 'PATCH', body: JSON.stringify({ is_active: true }) });
+    await refreshRestaurantFloor();
+    alert(res.message);
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+// =========================================================
 // STAFF USER MANAGEMENT
 // =========================================================
 let staffUsersCache = [];
@@ -555,6 +682,39 @@ async function downloadAuthorizedFile(path, fallbackName) {
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   } catch (err) {
     alert(err.message);
+  }
+}
+
+// The .nxp export is authenticated. The server builds the package and returns a
+// short-lived signed link, which downloads natively even where blob downloads
+// are blocked; the authenticated stream stays as a fallback.
+async function downloadNxpBackup() {
+  const button = document.getElementById('nxp-export-btn');
+  const original = button ? button.innerHTML : '';
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Preparing backup...';
+  }
+  try {
+    const res = await api('/backup/export-nxp/prepare', { method: 'POST', body: '{}' });
+    const link = document.createElement('a');
+    link.href = res.download_url;
+    link.download = res.filename || 'nexuzy-backup.nxp';
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    if (button) button.textContent = 'Backup downloaded';
+    if (res.message) console.info(res.message);
+  } catch (err) {
+    await downloadAuthorizedFile('/backup/export-nxp', 'nexuzy-backup.nxp');
+  } finally {
+    setTimeout(() => {
+      if (button) {
+        button.disabled = false;
+        button.innerHTML = original;
+      }
+    }, 4000);
   }
 }
 

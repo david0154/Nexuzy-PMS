@@ -10,6 +10,8 @@ const {
   confirmCheckoutPreview,
   createFolioInvoice,
   recordPayment,
+  billableNights,
+  postStayRoomNights,
   round2
 } = require('../../services/billing');
 const {
@@ -476,7 +478,9 @@ const CHECKOUT_ROLES = ['admin', 'general_manager', 'front_desk', 'cashier'];
 
 router.get('/:id/checkout-preview', authenticateToken, requireRoles(...CHECKOUT_ROLES), async (req, res) => {
   try {
-    const preview = await buildCheckoutPreview(db, req.params.id, req.user.property_id);
+    const preview = await buildCheckoutPreview(db, req.params.id, req.user.property_id, {
+      checkout_date: req.query.checkout_date || null
+    });
     if (!preview) return res.status(404).json({ success: false, error: 'Stay not found for this property' });
     res.json({ success: true, preview });
   } catch (err) {
@@ -492,11 +496,16 @@ router.post('/:id/checkout-preview/confirm', authenticateToken, requireRoles(...
     );
     if (!stay) return res.status(404).json({ success: false, error: 'Active stay not found for this property' });
     const property = await db.get('SELECT * FROM properties WHERE id = ?', [req.user.property_id]);
+    const checkoutDate = req.body.checkout_date || null;
 
     const result = await db.transaction(async (conn) => {
-      // Catch up any local tax that has not yet been posted for this stay.
-      await postLocalTaxForStay(conn, property, stay, { userId: req.user.id });
-      const preview = await buildCheckoutPreview(conn, req.params.id, req.user.property_id);
+      // Catch up the room nights and local tax this stay is actually billed for.
+      await postStayRoomNights(conn, { stay, userId: req.user.id, checkoutDate });
+      await postLocalTaxForStay(conn, property, stay, {
+        userId: req.user.id,
+        nights: billableNights(stay, checkoutDate)
+      });
+      const preview = await buildCheckoutPreview(conn, req.params.id, req.user.property_id, { checkout_date: checkoutDate });
       if (!preview) throw new Error('Stay not found');
       const snapshot = await confirmCheckoutPreview(conn, {
         propertyId: req.user.property_id,
@@ -545,6 +554,13 @@ router.post('/:id/invoice', authenticateToken, requireRoles(...CHECKOUT_ROLES), 
     if (!stay) return res.status(404).json({ success: false, error: 'Stay not found for this property' });
     if (!stay.folio_id) return res.status(400).json({ success: false, error: 'Active folio not found' });
 
+    const checkoutDate = req.body.checkout_date || null;
+    // Turn the bill preview's remaining nights into real ledger rows, so the
+    // locked tax invoice carries every night of the stay.
+    await db.transaction(async (conn) => {
+      await postStayRoomNights(conn, { stay, userId: req.user.id, checkoutDate });
+    });
+
     const snapshot = await db.get(
       "SELECT * FROM checkout_snapshots WHERE stay_id = ? AND status IN ('confirmed','invoice_issued') ORDER BY confirmed_at DESC LIMIT 1",
       [req.params.id]
@@ -558,7 +574,7 @@ router.post('/:id/invoice', authenticateToken, requireRoles(...CHECKOUT_ROLES), 
     }
 
     if (snapshot) {
-      const preview = await buildCheckoutPreview(db, req.params.id, req.user.property_id);
+      const preview = await buildCheckoutPreview(db, req.params.id, req.user.property_id, { checkout_date: checkoutDate });
       if (!preview) return res.status(404).json({ success: false, error: 'Stay not found' });
       if (!snapshotMatchesPreview(snapshot, preview) &&
           !(req.body.allow_override && APPROVER_ROLES.includes(req.user.role))) {
@@ -620,7 +636,21 @@ router.post('/:id/check-out', authenticateToken, requireRoles(...CHECKOUT_ROLES)
     if (stay.status === 'checked_out') return res.status(400).json({ success: false, error: 'Stay is already checked out' });
     if (!stay.folio_id) return res.status(400).json({ success: false, error: 'Active folio not found' });
 
-    const preview = await buildCheckoutPreview(db, id, req.user.property_id);
+    const checkoutDate = req.body.checkout_date || null;
+    // Post the nights still owed for this stay before the bill is reviewed, so
+    // every night of a multi-night booking is on the final bill.
+    const property = await db.get('SELECT * FROM properties WHERE id = ?', [req.user.property_id]);
+    await db.transaction(async (conn) => {
+      await postStayRoomNights(conn, { stay, userId: req.user.id, checkoutDate });
+      if (property) {
+        await postLocalTaxForStay(conn, property, stay, {
+          userId: req.user.id,
+          nights: billableNights(stay, checkoutDate)
+        });
+      }
+    });
+
+    const preview = await buildCheckoutPreview(db, id, req.user.property_id, { checkout_date: checkoutDate });
     if (!preview) return res.status(404).json({ success: false, error: 'Stay not found' });
 
     const snapshot = await db.get(
@@ -808,12 +838,17 @@ router.post('/:id/checkout-payment', authenticateToken, requireRoles(...CHECKOUT
       const property = await conn.get('SELECT * FROM properties WHERE id = ?', [req.user.property_id]);
       if (!property) throw new Error('Property not found');
 
-      await postLocalTaxForStay(conn, property, stay, { userId: req.user.id });
+      const checkoutDate = req.body.checkout_date || null;
+      await postStayRoomNights(conn, { stay, userId: req.user.id, checkoutDate });
+      await postLocalTaxForStay(conn, property, stay, {
+        userId: req.user.id,
+        nights: billableNights(stay, checkoutDate)
+      });
       const rounding = await applyCheckoutRounding(conn, {
         property, folioId: stay.folio_id, stayId: stay.id, userId: req.user.id
       });
 
-      let preview = await buildCheckoutPreview(conn, stay.id, req.user.property_id);
+      let preview = await buildCheckoutPreview(conn, stay.id, req.user.property_id, { checkout_date: checkoutDate });
       if (!preview) throw new Error('Stay could not be loaded for checkout');
 
       let refundDue = round2(preview.totals.refund_due);

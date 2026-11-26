@@ -66,7 +66,7 @@ function stayNights(stay) {
  * Posts local tax ledger rows for every eligible, not-yet-charged guest-night.
  * Must run inside db.transaction().
  */
-async function postLocalTaxForStay(conn, property, stay, { userId = null } = {}) {
+async function postLocalTaxForStay(conn, property, stay, { userId = null, nights = null } = {}) {
   const config = taxConfig(property);
   if (!config.local_tax_enabled || !(config.local_tax_amount > 0)) {
     return { posted: 0, amount: 0 };
@@ -78,9 +78,13 @@ async function postLocalTaxForStay(conn, property, stay, { userId = null } = {})
   const guests = eligibleGuestCount(stay, property);
   if (!(guests > 0)) return { posted: 0, amount: 0 };
 
+  const allNights = stayNights(stay);
+  const targetNights = Number(nights) > 0 ? Math.min(Number(nights), allNights.length) : allNights.length;
+  const billable = allNights.slice(0, targetNights);
+
   let posted = 0;
   let amount = 0;
-  for (const night of stayNights(stay)) {
+  for (const night of billable) {
     if (config.local_tax_start_date && night < config.local_tax_start_date) continue;
     if (config.local_tax_end_date && night > config.local_tax_end_date) continue;
 
@@ -105,6 +109,37 @@ async function postLocalTaxForStay(conn, property, stay, { userId = null } = {})
     );
     posted += 1;
     amount = round2(amount + lineTotal);
+  }
+
+  // An early check-out bills fewer nights than were charged at check-in, so the
+  // tax already posted for the nights not stayed is reversed once.
+  if (targetNights < allNights.length && targetNights > 0) {
+    const cutoff = allNights[targetNights - 1];
+    const excessRows = await conn.all(
+      `SELECT * FROM folio_entries
+       WHERE folio_id = ? AND department = 'local_tax' AND total_amount > 0 AND date > ?`,
+      [folio.id, cutoff]
+    );
+    const excess = round2(excessRows.reduce((sum, row) => sum + Number(row.total_amount || 0), 0));
+    const key = `local-tax-adjust:${stay.id}:${targetNights}`;
+    const existingAdjustment = excess > 0.004
+      ? await conn.get('SELECT id FROM folio_entries WHERE folio_id = ? AND idempotency_key = ?', [folio.id, key])
+      : null;
+    if (excess > 0.004 && !existingAdjustment) {
+      await conn.run(
+        `INSERT INTO folio_entries
+         (id, folio_id, date, department, description, quantity, unit_price, tax_rate, tax_amount,
+          total_amount, reference_id, reference_type, created_by, idempotency_key)
+         VALUES (?, ?, date('now'), 'local_tax', ?, 1, ?, 0, 0, ?, ?, 'local_tax', ?, ?)`,
+        [
+          uuidv4(), folio.id,
+          `${config.local_tax_name} adjustment - early check-out`,
+          -excess, -excess, stay.id, userId, key
+        ]
+      );
+      posted += 1;
+      amount = round2(amount - excess);
+    }
   }
 
   if (posted > 0) await recalcFolio(conn, folio.id);

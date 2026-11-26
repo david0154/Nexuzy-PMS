@@ -306,15 +306,38 @@ async function sendBookingDocument(docId) {
 }
 
 // ---------- Checkout bill ----------
-async function openCheckoutPreview(stayId) {
+function checkoutToday() {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
+async function openCheckoutPreview(stayId, checkoutDate, resetDate = false) {
   try {
-    const res = await api(`/stays/${stayId}/checkout-preview`);
-    checkoutPreviewState = { stayId, preview: res.preview };
+    const prior = checkoutPreviewState && checkoutPreviewState.stayId === stayId && !resetDate
+      ? checkoutPreviewState
+      : null;
+    const date = checkoutDate !== undefined ? checkoutDate : (prior ? prior.checkoutDate : null);
+    const query = date ? `?checkout_date=${encodeURIComponent(date)}` : '';
+    const res = await api(`/stays/${stayId}/checkout-preview${query}`);
+    checkoutPreviewState = { ...(prior || {}), stayId, checkoutDate: date || null, preview: res.preview };
     renderCheckoutPreview(res.preview);
     openModal('modal-checkout');
   } catch (err) {
     alert(err.message);
   }
+}
+
+function applyCheckoutDate() {
+  if (!checkoutPreviewState) return;
+  const input = document.getElementById('checkout-early-date');
+  const value = input ? input.value : '';
+  if (!value) return alert('Choose the date the guest is leaving.');
+  openCheckoutPreview(checkoutPreviewState.stayId, value);
+}
+
+function clearCheckoutDate() {
+  if (!checkoutPreviewState) return;
+  openCheckoutPreview(checkoutPreviewState.stayId, null, true);
 }
 
 function renderCheckoutPreview(preview) {
@@ -331,13 +354,23 @@ function renderCheckoutPreview(preview) {
           <h4 class="text-base font-black text-white">Room ${preview.stay.room_number} · ${preview.stay.guest.name}</h4>
           <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase ${preview.bill_confirmed ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}">${preview.bill_confirmed ? 'Bill confirmed' : 'Awaiting bill confirmation'}</span>
         </div>
-        <p class="text-xs text-slate-400 mt-1">${preview.stay.room_type_name} · ${String(preview.stay.check_in_time).slice(0, 16)} → ${preview.stay.expected_check_out} · ${preview.stay.nights} night(s)</p>
+        <p class="text-xs text-slate-400 mt-1">${preview.stay.room_type_name} · ${String(preview.stay.check_in_time).slice(0, 16)} → ${preview.stay.expected_check_out} · ${preview.stay.billable_nights || preview.stay.nights} night(s)${preview.stay.early_checkout ? ` <span class="text-amber-300">(early check-out, booked ${preview.stay.nights})</span>` : ''}</p>
         ${preview.stay.booking_reference ? `<p class="text-[11px] text-slate-500 font-mono mt-0.5">Booking ${preview.stay.booking_reference}</p>` : ''}
       </div>
       <div class="text-right">
         <div class="text-[10px] text-slate-500 uppercase font-bold">${t.balance_due > 0 ? 'Balance due' : (t.refund_due > 0 ? 'Refund due' : 'Settled')}</div>
         <div class="text-2xl font-mono font-black ${t.balance_due > 0 ? 'text-rose-400' : (t.refund_due > 0 ? 'text-amber-400' : 'text-emerald-400')}">${money(t.balance_due > 0 ? t.balance_due : t.refund_due)}</div>
       </div>
+    </div>
+
+    <div class="mt-3 p-3 bg-slate-800/50 border border-slate-700 rounded-lg flex flex-wrap items-end gap-2">
+      <div class="min-w-[200px] flex-1">
+        <div class="text-[10px] font-bold uppercase tracking-wider text-amber-300">Early check-out adjustment</div>
+        <div class="text-[10px] text-slate-500">Leaving before ${preview.stay.expected_check_out}? Bill only the nights stayed.</div>
+      </div>
+      <input type="date" id="checkout-early-date" value="${preview.checkout_date || (checkoutToday() < preview.stay.expected_check_out ? checkoutToday() : '')}" min="${String(preview.stay.check_in_time).slice(0, 10)}" max="${preview.stay.expected_check_out}" class="input-field text-xs w-40">
+      <button onclick="applyCheckoutDate()" class="btn-secondary text-xs">Apply date</button>
+      <button onclick="clearCheckoutDate()" class="btn-secondary text-xs">Full stay (${preview.stay.nights} night(s))</button>
     </div>
 
     ${t.balance_due > 0 ? `<div class="mt-3 p-2.5 bg-rose-500/10 border border-rose-500/30 rounded-lg text-[11px] text-rose-300">Unpaid balance must be settled before checkout, unless an authorised credit policy applies.</div>` : ''}
@@ -350,8 +383,8 @@ function renderCheckoutPreview(preview) {
           <thead class="bg-slate-800/70 text-slate-400 uppercase text-[10px]"><tr><th class="px-2 py-2 text-left">Date</th><th class="px-2 py-2 text-left">Source</th><th class="px-2 py-2 text-left">Description</th><th class="px-2 py-2 text-right">Tax</th><th class="px-2 py-2 text-right">Amount</th></tr></thead>
           <tbody class="divide-y divide-slate-800">
             ${entries.length ? entries.map(e => `<tr>
-              <td class="px-2 py-1.5 font-mono text-slate-500">${e.date}</td>
-              <td class="px-2 py-1.5 uppercase text-[9px] font-bold ${e.reference_type === 'restaurant_order' ? 'text-indigo-300' : 'text-slate-400'}">${e.department.replace(/_/g, ' ')}</td>
+              <td class="px-2 py-1.5 font-mono text-slate-500">${e.date || 'Pending'}</td>
+              <td class="px-2 py-1.5 uppercase text-[9px] font-bold ${e.reference_type === 'restaurant_order' ? 'text-indigo-300' : 'text-slate-400'}">${e.department.replace(/_/g, ' ')}${e.pending ? ' · not yet posted' : ''}</td>
               <td class="px-2 py-1.5 text-white">${e.description}</td>
               <td class="px-2 py-1.5 text-right font-mono">${money(e.tax_amount)}</td>
               <td class="px-2 py-1.5 text-right font-mono font-bold">${money(e.total_amount)}</td>
@@ -364,9 +397,14 @@ function renderCheckoutPreview(preview) {
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
       <div class="p-3 bg-slate-800/50 border border-slate-700 rounded-lg">
         <h5 class="text-[10px] font-bold uppercase text-emerald-300 mb-1.5">Restaurant posted to room (payable here)</h5>
-        ${posted.length ? posted.map(o => `<div class="flex justify-between text-[11px] py-1 border-b border-slate-700/50 last:border-0">
-          <span><span class="font-mono text-white">${o.order_number}</span> <span class="text-slate-500">· ${o.order_type.replace(/_/g, ' ')}</span></span>
-          <span class="font-mono text-emerald-300">${money(o.folio_charge)}</span></div>`).join('') : '<div class="text-[11px] text-slate-500">None</div>'}
+        ${posted.length ? posted.map(o => `<div class="py-1 border-b border-slate-700/50 last:border-0">
+          <div class="flex justify-between text-[11px]">
+            <span><span class="font-mono text-white">${o.order_number}</span> <span class="text-slate-500">· ${o.order_type.replace(/_/g, ' ')}</span></span>
+            <span class="font-mono text-emerald-300">${money(o.folio_charge)}</span>
+          </div>
+          ${(o.items || []).map(it => `<div class="flex justify-between text-[10px] text-slate-400 pl-2">
+            <span>${Number(it.quantity) || 1} × ${it.item_name}</span><span class="font-mono">${money(it.total_amount)}</span></div>`).join('')}
+        </div>`).join('') : '<div class="text-[11px] text-slate-500">None</div>'}
       </div>
       <div class="p-3 bg-slate-800/50 border border-slate-700 rounded-lg">
         <h5 class="text-[10px] font-bold uppercase text-slate-400 mb-1.5">Paid separately in outlet (not payable here)</h5>
@@ -438,7 +476,10 @@ function renderCheckoutPreview(preview) {
 async function confirmCheckoutBill() {
   if (!checkoutPreviewState) return;
   try {
-    await api(`/stays/${checkoutPreviewState.stayId}/checkout-preview/confirm`, { method: 'POST', body: '{}' });
+    await api(`/stays/${checkoutPreviewState.stayId}/checkout-preview/confirm`, {
+      method: 'POST',
+      body: JSON.stringify({ checkout_date: checkoutPreviewState.checkoutDate || null })
+    });
     alert('Bill preview confirmed and snapshotted. Collect any balance, then generate the final invoice.');
     await openCheckoutPreview(checkoutPreviewState.stayId);
   } catch (err) {
@@ -449,7 +490,10 @@ async function confirmCheckoutBill() {
 async function generateCheckoutInvoice() {
   if (!checkoutPreviewState) return;
   try {
-    const res = await api(`/stays/${checkoutPreviewState.stayId}/invoice`, { method: 'POST', body: '{}' });
+    const res = await api(`/stays/${checkoutPreviewState.stayId}/invoice`, {
+      method: 'POST',
+      body: JSON.stringify({ checkout_date: checkoutPreviewState.checkoutDate || null })
+    });
     if (res.duplicate) alert(`Invoice ${res.invoice.invoice_number} already exists. Showing the issued invoice.`);
     showInvoiceDocument(res.invoice);
     await openCheckoutPreview(checkoutPreviewState.stayId);
@@ -482,7 +526,11 @@ async function collectAndCheckout(method) {
     const res = await api(`/stays/${preview.stay.id}/checkout-payment`, {
       method: 'POST',
       headers: { 'Idempotency-Key': checkoutPreviewState.idempotencyKey },
-      body: JSON.stringify({ payment_method: method, refund_acknowledged: refundAcknowledged })
+      body: JSON.stringify({
+        payment_method: method,
+        refund_acknowledged: refundAcknowledged,
+        checkout_date: checkoutPreviewState.checkoutDate || null
+      })
     });
     const invoiceNumber = res.invoice ? res.invoice.invoice_number : '';
     alert(`Room ${preview.stay.room_number} checked out.\nAmount collected: ${money(res.amount_collected)}\nReceipt: ${res.payment ? res.payment.receipt_number : '—'}\nInvoice: ${invoiceNumber || '—'}\nHousekeeping notified and guest QR session revoked.`);
@@ -516,7 +564,10 @@ async function completeCheckout() {
   try {
     const res = await api(`/stays/${checkoutPreviewState.stayId}/check-out`, {
       method: 'POST',
-      body: JSON.stringify({ refund_acknowledged: refundAcknowledged })
+      body: JSON.stringify({
+        refund_acknowledged: refundAcknowledged,
+        checkout_date: checkoutPreviewState.checkoutDate || null
+      })
     });
     alert(`Room ${preview.stay.room_number} checked out.${res.invoice ? '\nInvoice ' + res.invoice.invoice_number : ''}\nHousekeeping notified.`);
     closeModal('modal-checkout');

@@ -153,11 +153,171 @@ router.get('/tables', authenticateToken, async (req, res) => {
       `SELECT t.*, o.order_number, o.total_amount as current_order_total
        FROM restaurant_tables t
        LEFT JOIN restaurant_orders o ON t.current_order_id = o.id AND o.property_id = t.property_id
-       WHERE t.property_id = ?
+       WHERE t.property_id = ? AND COALESCE(t.is_active, 1) = 1
        ORDER BY t.section ASC, t.table_number ASC`,
       [req.user.property_id]
     );
     res.json({ success: true, tables });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------
+// Table administration (add / edit / delete restaurant tables)
+// ---------------------------------------------------------------
+function validTableNumber(value) {
+  const number = String(value === undefined || value === null ? '' : value).trim();
+  return number.length > 0 && number.length <= 20;
+}
+
+function validTableCapacity(value) {
+  const capacity = Number(value);
+  return Number.isInteger(capacity) && capacity >= 1 && capacity <= 50;
+}
+
+router.get('/tables/manage', authenticateToken, requireRoles(...APPROVER_ROLES), async (req, res) => {
+  try {
+    const tables = await db.all(
+      `SELECT t.*,
+              (SELECT COUNT(*) FROM restaurant_orders o WHERE o.table_id = t.id) AS order_count,
+              (SELECT COUNT(*) FROM restaurant_bookings b WHERE b.table_id = t.id) AS booking_count,
+              o.order_number, o.total_amount AS current_order_total
+       FROM restaurant_tables t
+       LEFT JOIN restaurant_orders o ON t.current_order_id = o.id AND o.property_id = t.property_id
+       WHERE t.property_id = ?
+       ORDER BY COALESCE(t.is_active, 1) DESC, t.section ASC, t.table_number ASC`,
+      [req.user.property_id]
+    );
+    const sections = [...new Set(tables.map(t => t.section).filter(Boolean))].sort();
+    res.json({ success: true, tables, sections });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/tables', authenticateToken, requireRoles(...APPROVER_ROLES), async (req, res) => {
+  try {
+    const number = String(req.body.table_number || '').trim();
+    const capacity = req.body.capacity === undefined ? 4 : req.body.capacity;
+    const section = String(req.body.section || '').trim() || 'Main Dining';
+    if (!validTableNumber(number)) {
+      return res.status(400).json({ success: false, error: 'Table number is required (up to 20 characters)' });
+    }
+    if (!validTableCapacity(capacity)) {
+      return res.status(400).json({ success: false, error: 'Seats must be a whole number between 1 and 50' });
+    }
+    if (section.length > 40) {
+      return res.status(400).json({ success: false, error: 'Section name must be 40 characters or fewer' });
+    }
+    const duplicate = await db.get(
+      'SELECT id, is_active FROM restaurant_tables WHERE property_id = ? AND table_number = ? COLLATE NOCASE',
+      [req.user.property_id, number]
+    );
+    if (duplicate) {
+      return res.status(409).json({
+        success: false,
+        error: duplicate.is_active === 0
+          ? `Table ${number} already exists but is deleted. Restore it from the table manager instead.`
+          : `Table ${number} already exists`
+      });
+    }
+
+    const id = uuidv4();
+    await db.run(
+      `INSERT INTO restaurant_tables (id, property_id, table_number, capacity, section, status, is_active)
+       VALUES (?, ?, ?, ?, ?, 'available', 1)`,
+      [id, req.user.property_id, number, Number(capacity), section]
+    );
+    await logAudit({
+      propertyId: req.user.property_id, userId: req.user.id, action: 'CREATE_RESTAURANT_TABLE',
+      entityType: 'restaurant_table', entityId: id, details: { table_number: number, capacity, section }, req
+    });
+    res.status(201).json({ success: true, message: `Table ${number} added`, id });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.patch('/tables/:id', authenticateToken, requireRoles(...APPROVER_ROLES), async (req, res) => {
+  try {
+    const table = await db.get('SELECT * FROM restaurant_tables WHERE id = ? AND property_id = ?', [req.params.id, req.user.property_id]);
+    if (!table) return res.status(404).json({ success: false, error: 'Table not found' });
+
+    const number = req.body.table_number !== undefined ? String(req.body.table_number).trim() : table.table_number;
+    const capacity = req.body.capacity !== undefined ? req.body.capacity : table.capacity;
+    const section = req.body.section !== undefined ? (String(req.body.section).trim() || 'Main Dining') : table.section;
+    if (!validTableNumber(number)) {
+      return res.status(400).json({ success: false, error: 'Table number is required (up to 20 characters)' });
+    }
+    if (!validTableCapacity(capacity)) {
+      return res.status(400).json({ success: false, error: 'Seats must be a whole number between 1 and 50' });
+    }
+    if (section.length > 40) {
+      return res.status(400).json({ success: false, error: 'Section name must be 40 characters or fewer' });
+    }
+    const duplicate = await db.get(
+      'SELECT id FROM restaurant_tables WHERE property_id = ? AND table_number = ? COLLATE NOCASE AND id != ?',
+      [req.user.property_id, number, table.id]
+    );
+    if (duplicate) return res.status(409).json({ success: false, error: `Table ${number} already exists` });
+
+    const isActive = req.body.is_active !== undefined ? (req.body.is_active ? 1 : 0) : (table.is_active === 0 ? 0 : 1);
+    await db.run(
+      'UPDATE restaurant_tables SET table_number = ?, capacity = ?, section = ?, is_active = ? WHERE id = ?',
+      [number, Number(capacity), section, isActive, table.id]
+    );
+    await logAudit({
+      propertyId: req.user.property_id, userId: req.user.id, action: 'UPDATE_RESTAURANT_TABLE',
+      entityType: 'restaurant_table', entityId: table.id,
+      details: { before: { number: table.table_number, capacity: table.capacity, section: table.section }, after: { number, capacity, section, is_active: isActive } }, req
+    });
+    res.json({ success: true, message: `Table ${number} updated` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.delete('/tables/:id', authenticateToken, requireRoles(...APPROVER_ROLES), async (req, res) => {
+  try {
+    const table = await db.get('SELECT * FROM restaurant_tables WHERE id = ? AND property_id = ?', [req.params.id, req.user.property_id]);
+    if (!table) return res.status(404).json({ success: false, error: 'Table not found' });
+    if (table.current_order_id) {
+      return res.status(409).json({ success: false, error: `Table ${table.table_number} has an open order. Settle or clear that order before deleting the table.` });
+    }
+    const upcoming = await db.get(
+      `SELECT id FROM restaurant_bookings
+       WHERE table_id = ? AND status IN ('pending', 'confirmed', 'seated') LIMIT 1`,
+      [table.id]
+    );
+    if (upcoming) {
+      return res.status(409).json({ success: false, error: `Table ${table.table_number} has an active advance booking. Complete or cancel the booking first.` });
+    }
+
+    const history = await db.get(
+      `SELECT (SELECT COUNT(*) FROM restaurant_orders WHERE table_id = ?) +
+              (SELECT COUNT(*) FROM restaurant_bookings WHERE table_id = ?) +
+              (SELECT COUNT(*) FROM kitchen_tickets WHERE table_id = ?) AS count`,
+      [table.id, table.id, table.id]
+    );
+
+    if (Number(history.count) > 0) {
+      // Past bills reference this table, so it is archived instead of removed:
+      // it disappears from the POS floor while old bills keep the table name.
+      await db.run('UPDATE restaurant_tables SET is_active = 0, status = \'available\' WHERE id = ?', [table.id]);
+      await logAudit({
+        propertyId: req.user.property_id, userId: req.user.id, action: 'DELETE_RESTAURANT_TABLE',
+        entityType: 'restaurant_table', entityId: table.id, details: { table_number: table.table_number, mode: 'archived' }, req
+      });
+      return res.json({ success: true, message: `Table ${table.table_number} removed from the POS floor (kept for past bills)` });
+    }
+
+    await db.run('DELETE FROM restaurant_tables WHERE id = ?', [table.id]);
+    await logAudit({
+      propertyId: req.user.property_id, userId: req.user.id, action: 'DELETE_RESTAURANT_TABLE',
+      entityType: 'restaurant_table', entityId: table.id, details: { table_number: table.table_number, mode: 'deleted' }, req
+    });
+    res.json({ success: true, message: `Table ${table.table_number} deleted` });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

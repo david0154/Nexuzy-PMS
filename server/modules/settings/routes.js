@@ -2,7 +2,12 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
-const nodemailer = require('nodemailer');
+const {
+  normalizeSmtpConfig,
+  describeSmtpError,
+  verifySmtp,
+  sendMail
+} = require('../../services/mailer');
 const db = require('../../config/database');
 const { authenticateToken, requireRoles } = require('../../middleware/auth');
 const { logAudit } = require('../../middleware/audit');
@@ -283,14 +288,14 @@ router.post('/smtp', authenticateToken, requireRoles('admin'), async (req, res) 
       }
     }
 
-    const config = {
+    const config = normalizeSmtpConfig({
       host: host || '',
       port: Number(port) || 587,
       secure: Boolean(secure),
       user: user || '',
       pass: finalPass || '',
       from_email: from_email || user || ''
-    };
+    });
 
     await db.run(
       `INSERT OR REPLACE INTO system_settings (setting_key, setting_value, updated_at) VALUES ('smtp_config', ?, CURRENT_TIMESTAMP)`,
@@ -306,7 +311,10 @@ router.post('/smtp', authenticateToken, requireRoles('admin'), async (req, res) 
       req
     });
 
-    res.json({ success: true, message: 'SMTP Mail settings saved successfully' });
+    const note = config.secure && !secure
+      ? ` Port ${config.port} always uses SSL/TLS, so it was enabled automatically.`
+      : '';
+    res.json({ success: true, message: `SMTP Mail settings saved successfully.${note}`, smtp: config });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -323,26 +331,33 @@ router.post('/test-email', authenticateToken, requireRoles('admin'), async (req,
       return res.status(400).json({ success: false, error: 'Please configure SMTP settings first.' });
     }
 
-    const config = JSON.parse(smtpRow.setting_value);
+    const config = normalizeSmtpConfig(JSON.parse(smtpRow.setting_value));
     if (!config.host || !config.user) {
       return res.status(400).json({ success: false, error: 'SMTP host and username are missing.' });
     }
+    if (!config.pass) {
+      return res.status(400).json({ success: false, error: 'The SMTP password is missing. Re-enter the mailbox password and save.' });
+    }
 
-    const transporter = nodemailer.createTransport({
-      host: config.host,
-      port: config.port,
-      secure: config.secure,
-      auth: {
-        user: config.user,
-        pass: config.pass
-      }
-    });
+    // Verify the connection and login first, so a credential or port problem is
+    // reported as such instead of as a generic send failure.
+    try {
+      await verifySmtp(config);
+    } catch (err) {
+      console.error('Mail verify error:', err);
+      return res.status(400).json({
+        success: false,
+        error: describeSmtpError(err, config),
+        smtp: { host: config.host, port: config.port, secure: config.secure },
+        detail: err.message
+      });
+    }
 
     const prop = await db.get('SELECT name FROM properties WHERE id = ?', [req.user.property_id]);
     const hotelName = prop ? prop.name : 'Nexuzy PMS';
 
-    await transporter.sendMail({
-      from: `"${hotelName}" <${config.from_email || config.user}>`,
+    await sendMail(config, {
+      from_name: hotelName,
       to: target_email,
       subject: `Nexuzy PMS - SMTP Test Email (${hotelName})`,
       html: `
@@ -357,10 +372,14 @@ router.post('/test-email', authenticateToken, requireRoles('admin'), async (req,
       `
     });
 
-    res.json({ success: true, message: `Test email sent successfully to ${target_email}!` });
+    res.json({
+      success: true,
+      message: `Test email sent successfully to ${target_email}!`,
+      smtp: { host: config.host, port: config.port, secure: config.secure }
+    });
   } catch (err) {
     console.error('Mail test error:', err);
-    res.status(500).json({ success: false, error: `SMTP Failed: ${err.message}` });
+    res.status(400).json({ success: false, error: describeSmtpError(err), detail: err.message });
   }
 });
 

@@ -67,6 +67,9 @@ const COLUMNS = {
   restaurant_bookings: [
     ['idempotency_key', 'TEXT']
   ],
+  restaurant_tables: [
+    ['is_active', 'INTEGER DEFAULT 1']
+  ],
   payments: [
     ['restaurant_order_id', 'TEXT'],
     ['restaurant_booking_id', 'TEXT'],

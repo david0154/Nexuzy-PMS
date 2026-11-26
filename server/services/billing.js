@@ -10,6 +10,55 @@ function round2(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
 }
 
+function dateOnly(value) {
+  const text = String(value || '').slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+}
+
+function addDays(isoDate, days) {
+  const date = new Date(`${isoDate}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function nightsBetweenDates(from, to) {
+  const start = Date.parse(`${from}T00:00:00Z`);
+  const end = Date.parse(`${to}T00:00:00Z`);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return 0;
+  return Math.round((end - start) / 86400000);
+}
+
+// Nights that can be billed. The booked departure sets the default; an earlier
+// requested check-out date shortens the stay, and it can never bill past the
+// booked departure.
+function billableNights(stay, checkoutDate = null) {
+  const checkIn = dateOnly(stay.check_in_time);
+  const expectedOut = dateOnly(stay.expected_check_out);
+  if (!checkIn || !expectedOut) return 1;
+  const booked = Math.max(1, nightsBetweenDates(checkIn, expectedOut));
+  const requested = dateOnly(checkoutDate);
+  if (!requested) return booked;
+  return Math.min(booked, Math.max(1, nightsBetweenDates(checkIn, requested)));
+}
+
+// The room-rent rate already on the folio wins, so a late-night projection is
+// priced exactly like the night audit rows that will replace it.
+function roomRentRates(entries, stay) {
+  const posted = (entries || []).filter(e => e.department === 'room_rent' && Number(e.total_amount) > 0);
+  const last = posted[posted.length - 1] || {};
+  const rate = Number(last.unit_price !== undefined ? last.unit_price : (stay.nightly_rate || 0)) || 0;
+  const taxRate = Number(
+    last.tax_rate !== undefined
+      ? last.tax_rate
+      : (stay.room_tax_rate !== undefined ? stay.room_tax_rate : (stay.default_room_tax_rate || 0))
+  ) || 0;
+  return {
+    rate,
+    taxRate,
+    postedNights: posted.reduce((sum, e) => sum + Number(e.quantity || 0), 0)
+  };
+}
+
 async function recalcFolio(conn, folioId) {
   const charges = await conn.get(
     'SELECT COALESCE(SUM(total_amount), 0) AS total FROM folio_entries WHERE folio_id = ?',
@@ -184,7 +233,7 @@ function taxBreakdown(entries) {
     .sort((a, b) => a.tax_rate - b.tax_rate);
 }
 
-async function buildCheckoutPreview(conn, stayId, propertyId = null) {
+async function buildCheckoutPreview(conn, stayId, propertyId = null, options = {}) {
   const scopeParams = [stayId];
   let propertyScope = '';
   if (propertyId) {
@@ -217,7 +266,7 @@ async function buildCheckoutPreview(conn, stayId, propertyId = null) {
   if (!stay) return null;
   if (!stay.folio_id) throw new Error('Active folio not found for this stay');
 
-  const entries = await conn.all(
+  const postedEntries = await conn.all(
     'SELECT * FROM folio_entries WHERE folio_id = ? ORDER BY date ASC, created_at ASC',
     [stay.folio_id]
   );
@@ -258,6 +307,64 @@ async function buildCheckoutPreview(conn, stayId, propertyId = null) {
     [stay.room_id, stay.check_in_time, stay.actual_check_out_time || stay.expected_check_out, stayId]
   );
 
+  const existingInvoice = await conn.get(
+    "SELECT * FROM invoices WHERE folio_id = ? AND status != 'cancelled' ORDER BY created_at DESC LIMIT 1",
+    [stay.folio_id]
+  );
+  const confirmedSnapshot = await conn.get(
+    "SELECT * FROM checkout_snapshots WHERE stay_id = ? AND status = 'confirmed' ORDER BY confirmed_at DESC LIMIT 1",
+    [stayId]
+  );
+
+  const checkInDate = dateOnly(stay.check_in_time);
+  const nights = Math.max(1, nightsBetweenDates(checkInDate, dateOnly(stay.expected_check_out)));
+  const targetNights = billableNights(stay, options.checkout_date);
+  const { rate: roomRate, taxRate: roomTaxRate, postedNights } = roomRentRates(postedEntries, stay);
+  const pendingNights = Math.max(0, targetNights - postedNights);
+  const excessNights = Math.max(0, postedNights - targetNights);
+  const nightTax = round2(roomRate * (roomTaxRate / 100));
+
+  // The night audit posts one night at a time, so a two-night booking often sits
+  // on the folio with a single night of rent. The bill previews the nights not
+  // yet posted, and shows an early-check-out credit for nights not stayed, so
+  // the payable amount always covers the stay being settled.
+  const entries = postedEntries.slice();
+  if (pendingNights > 0) {
+    entries.push({
+      id: `projected-room-${stay.id}`,
+      folio_id: stay.folio_id,
+      date: null,
+      department: 'room_rent',
+      description: `Room rent - ${pendingNights} night(s) of ${targetNights}-night stay`,
+      quantity: pendingNights,
+      unit_price: roomRate,
+      tax_rate: roomTaxRate,
+      tax_amount: round2(nightTax * pendingNights),
+      total_amount: round2((roomRate + nightTax) * pendingNights),
+      pending: true
+    });
+  }
+  if (excessNights > 0) {
+    const credit = round2((roomRate + nightTax) * excessNights);
+    entries.push({
+      id: `early-checkout-adjust-${stay.id}`,
+      folio_id: stay.folio_id,
+      date: null,
+      department: 'room_rent',
+      description: `Early check-out adjustment - ${excessNights} night(s) not stayed`,
+      quantity: 1,
+      unit_price: -round2(roomRate * excessNights),
+      tax_rate: roomTaxRate,
+      tax_amount: -round2(nightTax * excessNights),
+      total_amount: -credit,
+      pending: true
+    });
+  }
+
+  // Food names for each posted order, shown under the order in the bill preview.
+  const postedRestaurantDetails = await restaurantOrderDetails(conn, stay.folio_id);
+  const itemsByOrder = new Map(postedRestaurantDetails.map(o => [o.order_number, o.items]));
+
   const totals = entries.reduce((acc, e) => {
     acc.gross = round2(acc.gross + Number(e.total_amount || 0));
     acc.tax = round2(acc.tax + Number(e.tax_amount || 0));
@@ -269,19 +376,6 @@ async function buildCheckoutPreview(conn, stayId, propertyId = null) {
   const paid = round2(payments.reduce((s, p) => s + Number(p.amount || 0), 0));
   const refunded = round2(refunds.reduce((s, r) => s + Number(r.amount || 0), 0));
   const balance = round2(totals.gross - paid + refunded);
-
-  const existingInvoice = await conn.get(
-    "SELECT * FROM invoices WHERE folio_id = ? AND status != 'cancelled' ORDER BY created_at DESC LIMIT 1",
-    [stay.folio_id]
-  );
-  const confirmedSnapshot = await conn.get(
-    "SELECT * FROM checkout_snapshots WHERE stay_id = ? AND status = 'confirmed' ORDER BY confirmed_at DESC LIMIT 1",
-    [stayId]
-  );
-
-  const nights = Math.max(1, Math.round(
-    (new Date(stay.expected_check_out) - new Date(stay.check_in_time)) / 86400000
-  ));
 
   const restaurantEntries = entries.filter(e => ['restaurant', 'room_service'].includes(e.department));
   const roomEntries = entries.filter(e => e.department === 'room_rent');
@@ -311,6 +405,9 @@ async function buildCheckoutPreview(conn, stayId, propertyId = null) {
       check_in_time: stay.check_in_time,
       expected_check_out: stay.expected_check_out,
       nights,
+      billable_nights: targetNights,
+      pending_room_nights: pendingNights,
+      early_checkout: targetNights < nights,
       nightly_rate: stay.nightly_rate,
       adults: stay.adults,
       children: stay.children,
@@ -347,7 +444,11 @@ async function buildCheckoutPreview(conn, stayId, propertyId = null) {
     refunds,
     tax_breakdown: taxBreakdown(entries),
     restaurant: {
-      posted_to_room: postedRestaurant.map(o => ({ ...o, included_in_bill: true })),
+      posted_to_room: postedRestaurant.map(o => ({
+        ...o,
+        included_in_bill: true,
+        items: itemsByOrder.get(o.order_number) || []
+      })),
       paid_separately: separateRestaurant.map(o => ({ ...o, included_in_bill: false, informational_only: true })),
       posted_total: round2(postedRestaurant.reduce((s, o) => s + Number(o.folio_charge || 0), 0)),
       separate_total: round2(separateRestaurant.reduce((s, o) => s + Number(o.total_amount || 0), 0))
@@ -388,7 +489,9 @@ async function buildCheckoutPreview(conn, stayId, propertyId = null) {
     },
     existing_invoice: existingInvoice || null,
     confirmed_snapshot: confirmedSnapshot || null,
-    bill_confirmed: Boolean(confirmedSnapshot)
+    bill_confirmed: Boolean(confirmedSnapshot),
+    checkout_date: dateOnly(options.checkout_date) || null,
+    billable_nights: targetNights
   };
 }
 
@@ -458,6 +561,42 @@ async function restaurantOrderDetails(conn, folioId) {
   return [...byOrder.values()];
 }
 
+// A restaurant order is billed once, as its food items. Printing the order-level
+// ledger row next to the itemised order block made the same money appear twice
+// on the guest bill.
+async function displayInvoiceItems(conn, entries) {
+  const result = [];
+  for (const entry of entries) {
+    if (entry.reference_type === 'restaurant_order' && entry.reference_id) {
+      const items = await conn.all(
+        `SELECT item_name, quantity, unit_price, total_amount
+         FROM order_items WHERE order_id = ? ORDER BY created_at ASC`,
+        [entry.reference_id]
+      ).catch(() => []);
+      if (items.length) {
+        for (const item of items) {
+          const quantity = Number(item.quantity) || 1;
+          const unitPrice = Number(item.unit_price) || 0;
+          result.push({
+            ...entry,
+            description: item.item_name,
+            quantity,
+            unit_price: unitPrice,
+            tax_rate: 0,
+            tax_amount: 0,
+            total_amount: item.total_amount !== undefined && item.total_amount !== null
+              ? Number(item.total_amount)
+              : round2(quantity * unitPrice)
+          });
+        }
+        continue;
+      }
+    }
+    result.push(entry);
+  }
+  return result;
+}
+
 async function getInvoiceResponse(conn, invoiceId) {
   const invoice = await conn.get('SELECT * FROM invoices WHERE id = ?', [invoiceId]);
   if (!invoice) return null;
@@ -510,7 +649,7 @@ async function getInvoiceResponse(conn, invoiceId) {
     folio_number: context ? context.folio_number : null,
     stay_number: context ? context.stay_number : null,
     restaurant_orders: await restaurantOrderDetails(conn, invoice.folio_id),
-    items: entries,
+    items: await displayInvoiceItems(conn, entries),
     taxable_value: round2((invoice.tax_breakdown ? JSON.parse(invoice.tax_breakdown) : []).reduce((sum, row) => sum + Number(row.taxable_value || 0), 0)),
     cgst: invoice.cgst_amount,
     sgst: invoice.sgst_amount,
@@ -653,7 +792,7 @@ async function createFolioInvoice(conn, {
       gstin: stay.guest_gstin,
       phone: stay.guest_phone
     } : { name: customerName },
-    items: entries,
+    items: await displayInvoiceItems(conn, entries),
     restaurant_orders: await restaurantOrderDetails(conn, folioId),
     subtotal,
     taxable_value: taxableValue,
@@ -680,9 +819,94 @@ async function createFolioInvoice(conn, {
   return { invoice, duplicate: false };
 }
 
+// Posts the room-rent nights that the night audit has not reached yet, so a
+// checkout bill and its tax invoice carry every night of the stay. When the
+// guest leaves early the surplus nights are reversed instead of posted.
+// Must run inside db.transaction().
+async function postStayRoomNights(conn, { stay, userId = null, checkoutDate = null }) {
+  const stayRow = await conn.get(
+    `SELECT s.*, rt.tax_rate AS room_tax_rate
+     FROM stays s
+     JOIN rooms r ON s.room_id = r.id
+     JOIN room_types rt ON r.room_type_id = rt.id
+     WHERE s.id = ?`,
+    [stay.id]
+  );
+  if (!stayRow) return { posted: 0, reversed: 0, nights: 0 };
+
+  const folioId = stay.folio_id || (await conn.get(
+    'SELECT id FROM folios WHERE stay_id = ? ORDER BY created_at DESC LIMIT 1',
+    [stayRow.id]
+  ))?.id;
+  if (!folioId) return { posted: 0, reversed: 0, nights: 0 };
+
+  const entries = await conn.all(
+    'SELECT * FROM folio_entries WHERE folio_id = ? ORDER BY date ASC, created_at ASC',
+    [folioId]
+  );
+  const targetNights = billableNights(stayRow, checkoutDate);
+  const checkInDate = dateOnly(stayRow.check_in_time);
+  if (!checkInDate) return { posted: 0, reversed: 0, nights: targetNights };
+
+  const { rate, taxRate, postedNights } = roomRentRates(entries, stayRow);
+  const nightTax = round2(rate * (taxRate / 100));
+  let posted = 0;
+
+  for (let index = postedNights; index < targetNights; index += 1) {
+    const night = addDays(checkInDate, index);
+    const key = `night-audit:${stayRow.id}:${night}`;
+    const existing = await conn.get(
+      'SELECT id FROM folio_entries WHERE folio_id = ? AND idempotency_key = ?',
+      [folioId, key]
+    );
+    if (existing) continue;
+    await conn.run(
+      `INSERT INTO folio_entries
+       (id, folio_id, date, department, description, quantity, unit_price, tax_rate, tax_amount,
+        total_amount, created_by, idempotency_key)
+       VALUES (?, ?, ?, 'room_rent', ?, 1, ?, ?, ?, ?, ?, ?)`,
+      [
+        uuidv4(), folioId, night, `Room rent - Night ${index + 1}`, rate, taxRate,
+        nightTax, round2(rate + nightTax), userId, key
+      ]
+    );
+    posted += 1;
+  }
+
+  let reversed = 0;
+  if (postedNights > targetNights) {
+    const excess = postedNights - targetNights;
+    const credit = round2((rate + nightTax) * excess);
+    const key = `early-checkout-adjust:${stayRow.id}:${targetNights}`;
+    const existing = await conn.get(
+      'SELECT id FROM folio_entries WHERE folio_id = ? AND idempotency_key = ?',
+      [folioId, key]
+    );
+    if (!existing && credit > 0.004) {
+      await conn.run(
+        `INSERT INTO folio_entries
+         (id, folio_id, date, department, description, quantity, unit_price, tax_rate, tax_amount,
+          total_amount, created_by, idempotency_key)
+         VALUES (?, ?, date('now'), 'room_rent', ?, 1, ?, ?, ?, ?, ?, ?)`,
+        [
+          uuidv4(), folioId,
+          `Early check-out adjustment - ${excess} night(s) not stayed`,
+          -round2(rate * excess), taxRate, -round2(nightTax * excess), -credit, userId, key
+        ]
+      );
+      reversed = excess;
+    }
+  }
+
+  if (posted > 0 || reversed > 0) await recalcFolio(conn, folioId);
+  return { posted, reversed, nights: targetNights, folioId };
+}
+
 module.exports = {
   round2,
   recalcFolio,
+  billableNights,
+  postStayRoomNights,
   findDuplicatePayment,
   recordPayment,
   taxBreakdown,

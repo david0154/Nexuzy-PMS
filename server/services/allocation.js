@@ -768,7 +768,7 @@ async function availabilityTimeline(conn, propertyId, options = {}) {
   const end = dates[dates.length - 1];
   const rooms = await conn.all(
     `SELECT r.id, r.room_number, r.floor, r.building, r.operational_status, r.housekeeping_status,
-            rt.name AS room_type_name
+            r.maintenance_status, rt.name AS room_type_name
      FROM rooms r JOIN room_types rt ON r.room_type_id = rt.id
      WHERE r.property_id = ? ORDER BY r.room_number ASC`,
     [propertyId]
@@ -812,20 +812,22 @@ async function availabilityTimeline(conn, propertyId, options = {}) {
       cells: dates.map(day => {
         const stay = stays.find(s => s.room_id === room.id && occupancy(s, day));
         if (stay) {
-          return {
-            date: day,
-            status: dateOnly(stay.to_date) === day ? 'checkout_pending' : 'occupied',
-            label: dateOnly(stay.to_date) === day ? 'Checkout' : 'Occupied',
-            reference: stay.stay_number
-          };
+          return { date: day, status: 'occupied', label: 'Occupied', reference: stay.stay_number };
         }
-        // A room flagged occupied with no stay row only describes the live state
-        // of today. Painting the whole visible window from operational_status
-        // made a two-night booking look like a week-long stay.
+        // The departure day is not an occupied night, but marking it as
+        // checkout keeps the stay's real length visible.
+        const departing = stays.find(s => s.room_id === room.id && dateOnly(s.to_date) === day);
+        if (departing) {
+          return { date: day, status: 'checkout_pending', label: 'Checkout', reference: departing.stay_number };
+        }
+        // A stale 'occupied' room flag only describes today's live state. It must
+        // never paint future days as blocked: an out-of-order room, an active
+        // maintenance block or a real block status is what blocks a date.
         if (room.operational_status === 'occupied' && day === isoDay(0)) {
           return { date: day, status: 'occupied', label: 'Occupied' };
         }
-        if (BLOCKING_ROOM_STATUSES.includes(room.operational_status) || room.maintenance_status === 'under_repair' || maintenance.has(room.id)) {
+        if (['out_of_order', 'out_of_service', 'blocked'].includes(room.operational_status) ||
+            room.maintenance_status === 'under_repair' || maintenance.has(room.id)) {
           return { date: day, status: 'maintenance', label: 'Blocked' };
         }
         const reservation = reservations.find(r => r.room_id === room.id && occupancy(r, day));

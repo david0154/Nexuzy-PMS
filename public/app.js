@@ -856,14 +856,23 @@ async function loadReservationsData() {
       const tr = document.createElement('tr');
       tr.className = 'hover:bg-slate-800/40';
       const balance = Number(r.total_amount || 0) - Number(r.deposit_paid || 0);
+      const nights = Math.max(1, Math.round(
+        (new Date(`${String(r.check_out_date).slice(0, 10)}T00:00:00Z`) -
+         new Date(`${String(r.check_in_date).slice(0, 10)}T00:00:00Z`)) / 86400000
+      ) || 1);
       tr.innerHTML = `
         <td class="px-4 py-3 font-mono text-indigo-400 font-bold">${r.booking_reference}</td>
         <td class="px-4 py-3 font-medium text-white">${r.guest_name}<div class="text-[10px] text-slate-400">${r.guest_phone}</div></td>
         <td class="px-4 py-3 text-slate-300">${r.room_type_name} ${r.room_number ? `(#${r.room_number})` : ''}</td>
-        <td class="px-4 py-3 text-slate-400">${r.check_in_date} to ${r.check_out_date}</td>
-        <td class="px-4 py-3 font-mono">₹${Number(r.rate_per_night).toLocaleString()}</td>
+        <td class="px-4 py-3 text-slate-400">${r.check_in_date} to ${r.check_out_date}
+          <div class="text-[10px] text-slate-500">${nights} night(s)</div>
+        </td>
+        <td class="px-4 py-3 font-mono">₹${Number(r.rate_per_night).toLocaleString()}
+          <div class="text-[10px] text-slate-500">Total ₹${Number(r.total_amount || 0).toLocaleString()}</div>
+        </td>
         <td class="px-4 py-3 font-mono text-emerald-400">₹${Number(r.deposit_paid || 0).toLocaleString()}
-          <div class="text-[10px] font-sans ${balance > 0 ? 'text-amber-400' : 'text-slate-500'}">Bal ₹${balance.toLocaleString()}</div>
+          <div class="text-[10px] text-slate-400">Advance paid</div>
+          <div class="text-[10px] font-sans ${balance > 0 ? 'text-amber-400' : 'text-emerald-400'}">Bal ₹${balance.toLocaleString()}</div>
         </td>
         <td class="px-4 py-3">
           <span class="px-2 py-0.5 text-[10px] font-bold rounded uppercase ${getReservationStatusBadge(r.status)}" title="Payment: ${r.payment_status || 'unpaid'}">
@@ -1242,6 +1251,15 @@ async function loadRestaurantPosData() {
 function renderPosTables(tables) {
   const container = document.getElementById('pos-tables-grid');
   container.innerHTML = '';
+
+  if (!tables.length) {
+    container.innerHTML = `
+      <div class="col-span-full p-4 text-center text-slate-400 text-xs border border-dashed border-slate-700 rounded-xl">
+        No restaurant tables yet.
+        <button type="button" onclick="openRestaurantTableManager()" class="ml-1 text-indigo-400 hover:underline font-semibold">Add tables</button>
+      </div>`;
+    return;
+  }
 
   tables.forEach(t => {
     const isSelected = selectedTableId === t.id && posOrderType === 'dine_in';
@@ -2358,6 +2376,34 @@ async function loadNightAuditData() {
           <div class="text-lg font-bold text-white mt-1">${data.pending_arrivals_count} pending</div>
         </div>
       </div>
+
+      <div class="mt-4">
+        <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Tonight's rent posting plan</div>
+        <div class="overflow-x-auto rounded-lg border border-slate-800">
+          <table class="w-full text-[11px] text-slate-300">
+            <thead class="bg-slate-800/70 text-slate-400 uppercase text-[10px]">
+              <tr>
+                <th class="px-2 py-2 text-left">Room</th>
+                <th class="px-2 py-2 text-left">Guest</th>
+                <th class="px-2 py-2 text-right">Nights billed</th>
+                <th class="px-2 py-2 text-right">Booked</th>
+                <th class="px-2 py-2 text-left">This run</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800">
+              ${(data.eligible_stays || []).length ? data.eligible_stays.map(st => `
+                <tr>
+                  <td class="px-2 py-1.5 font-mono text-white">${st.room_number}</td>
+                  <td class="px-2 py-1.5">${st.guest_name || '—'}</td>
+                  <td class="px-2 py-1.5 text-right font-mono">${st.posted_nights}</td>
+                  <td class="px-2 py-1.5 text-right font-mono">${st.booked_nights}</td>
+                  <td class="px-2 py-1.5 ${st.will_charge ? 'text-emerald-300' : 'text-slate-500'}">${st.will_charge ? 'Charge 1 night' : st.reason}</td>
+                </tr>`).join('') : '<tr><td colspan="5" class="text-center py-3 text-slate-500">No occupied stays to charge.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+        <p class="text-[10px] text-slate-500 mt-2">Each night is posted once. The audit never bills more nights than the booking holds.</p>
+      </div>
     `;
 
     const tbody = document.getElementById('tbody-night-audit-history');
@@ -2826,6 +2872,17 @@ async function handleSaveHotelProfile(e) {
   }
 }
 
+// Port 465 is implicit TLS and port 587 upgrades with STARTTLS, so the checkbox
+// follows the port instead of leaving a TLS port configured as plaintext.
+function syncSmtpSecureFromPort() {
+  const portInput = document.getElementById('smtp-port');
+  const secure = document.getElementById('smtp-secure');
+  if (!portInput || !secure) return;
+  const port = Number(portInput.value);
+  if (port === 465) secure.checked = true;
+  else if (port === 587) secure.checked = false;
+}
+
 async function handleSaveSmtpSettings(e) {
   e.preventDefault();
   const payload = {
@@ -2842,6 +2899,7 @@ async function handleSaveSmtpSettings(e) {
       method: 'POST',
       body: JSON.stringify(payload)
     });
+    await loadSettingsData();
     alert(res.message);
   } catch (err) {
     alert(err.message);
@@ -2849,7 +2907,8 @@ async function handleSaveSmtpSettings(e) {
 }
 
 async function handleSendTestEmail() {
-  const target = prompt('Enter recipient email address to send test email:');
+  const from = (document.getElementById('smtp-from')?.value || '').trim();
+  const target = prompt('Enter recipient email address to send test email:', from);
   if (!target) return;
 
   try {

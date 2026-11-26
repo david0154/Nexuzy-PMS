@@ -398,6 +398,7 @@ CREATE TABLE IF NOT EXISTS restaurant_tables (
     section TEXT DEFAULT 'Main Dining',
     status TEXT DEFAULT 'available', -- 'available', 'occupied', 'reserved', 'billed', 'cleaning'
     current_order_id TEXT,
+    is_active INTEGER DEFAULT 1,
     UNIQUE(property_id, table_number),
     FOREIGN KEY (property_id) REFERENCES properties(id)
 );

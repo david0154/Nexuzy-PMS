@@ -230,37 +230,27 @@ function buildInvoiceDocument(doc, invoice) {
     y += 28;
   }
 
+  // Restaurant orders are already itemised as food lines in the table above.
+  // One compact reference line keeps the bill traceable without reprinting the
+  // order totals and pushing the document onto a second page.
   const restaurantOrders = invoice.is_restaurant_bill ? [] : (invoice.restaurant_orders || []);
   if (restaurantOrders.length) {
-    if (y > doc.page.height - 110) { doc.addPage(); y = PAGE_MARGIN; }
-    y += 5;
-    doc.fillColor('#64748b').font('Helvetica-Bold').fontSize(7)
-      .text('RESTAURANT ORDERS POSTED TO THIS BILL', PAGE_MARGIN, y, { width: CONTENT_WIDTH });
-    y += 10;
-    for (const order of restaurantOrders) {
-      if (y > doc.page.height - 60) { doc.addPage(); y = PAGE_MARGIN; }
-      const reference = [
+    const references = restaurantOrders
+      .map(order => [
+        order.order_number,
         order.stay_number ? `Stay ${order.stay_number}` : null,
-        order.booking_reference ? `Ref ${order.booking_reference}` : null,
-        order.room_number ? `Room ${order.room_number}` : null
-      ].filter(Boolean).join('  |  ');
-      doc.fillColor('#334155').font('Helvetica-Bold').fontSize(7.5)
-        .text(`Order ${order.order_number || ''}${reference ? `  -  ${reference}` : ''}`, PAGE_MARGIN, y, { width: CONTENT_WIDTH - 100 });
-      doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(7.5)
-        .text(money(order.total_amount), PAGE_MARGIN + CONTENT_WIDTH - 90, y, { width: 90, align: 'right' });
-      y += 9;
-      for (const item of order.items || []) {
-        if (y > doc.page.height - 56) { doc.addPage(); y = PAGE_MARGIN; }
-        doc.fillColor('#475569').font('Helvetica').fontSize(7)
-          .text(`${Number(item.quantity) || 1} x ${text(item.item_name)}`, PAGE_MARGIN + 8, y, { width: 300 });
-        doc.fillColor('#334155').font('Helvetica').fontSize(7)
-          .text(money(item.total_amount), PAGE_MARGIN + CONTENT_WIDTH - 90, y, { width: 90, align: 'right' });
-        y += 8;
-      }
+        order.booking_reference ? `Ref ${order.booking_reference}` : null
+      ].filter(Boolean).join(' · '))
+      .filter(Boolean);
+    if (references.length) {
+      y += 3;
+      doc.fillColor('#64748b').font('Helvetica').fontSize(6.5)
+        .text(`Restaurant bills: ${references.join('  |  ')}`, PAGE_MARGIN, y, { width: CONTENT_WIDTH });
+      y += 11;
     }
   }
 
-  if (y > doc.page.height - 118) {
+  if (y > doc.page.height - 104) {
     doc.addPage();
     y = PAGE_MARGIN;
   }

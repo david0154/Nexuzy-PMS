@@ -167,8 +167,19 @@ async function runTests() {
     const auditRes = await request('POST', '/api/v1/night-audit/run');
     assert.strictEqual(auditRes.status, 200);
     assert.strictEqual(auditRes.body.summary.new_business_date, '2026-11-11');
-    assert.ok(auditRes.body.summary.rooms_charged >= 3);
-    console.log(`✔ Test 12 Passed: Night Audit Executed & Business Date Advanced to ${auditRes.body.summary.new_business_date} OK`);
+    // Rent already posted for the business date must never be posted again by
+    // the audit: every folio may hold at most one room-rent row per night.
+    let auditRentDates = [];
+    for (const folioId of ['folio-101', 'folio-grp-201']) {
+      const folioRes = await request('GET', `/api/v1/folios/${folioId}`);
+      const dates = folioRes.body.entries
+        .filter(e => e.department === 'room_rent')
+        .map(e => String(e.date).slice(0, 10));
+      assert.strictEqual(new Set(dates).size, dates.length, `Night audit double-charged a night on ${folioId}`);
+      auditRentDates = auditRentDates.concat(dates);
+    }
+    assert.ok(auditRentDates.length >= 3, 'Seeded occupied folios keep their posted rent nights');
+    console.log(`✔ Test 12 Passed: Night Audit posted no duplicate rent and advanced to ${auditRes.body.summary.new_business_date} OK`);
 
     // 13. Night Audit Idempotency (Cannot run twice for same business date)
     const auditRetryRes = await request('POST', '/api/v1/night-audit/run', { business_date: '2026-11-10' });

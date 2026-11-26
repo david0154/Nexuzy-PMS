@@ -3,8 +3,9 @@ const router = express.Router();
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const jwt = require('jsonwebtoken');
 const db = require('../../config/database');
-const { authenticateToken, requireRoles } = require('../../middleware/auth');
+const { authenticateToken, requireRoles, JWT_SECRET } = require('../../middleware/auth');
 const { logAudit } = require('../../middleware/audit');
 
 const BACKUP_DIR = path.join(__dirname, '..', '..', '..', 'backups');
@@ -12,69 +13,136 @@ if (!fs.existsSync(BACKUP_DIR)) {
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
 }
 
-const ALL_TABLES = [
-  'properties', 'document_sequences', 'users', 'room_types', 'rooms', 'guests',
-  'reservations', 'group_reservations', 'group_room_reservations',
-  'stays', 'folios', 'folio_entries', 'payments', 'payment_refunds',
-  'booking_documents', 'checkout_snapshots', 'invoices',
-  'restaurant_tables', 'menu_categories', 'menu_items', 'menu_variants',
-  'restaurant_orders', 'order_items', 'kitchen_tickets',
-  'housekeeping_tasks', 'maintenance_tickets', 'cashier_shifts',
-  'stock_items', 'stock_movements', 'night_audit_logs', 'audit_logs',
-  'system_settings'
-];
+// Tables come from the live schema. A hardcoded list silently left newer
+// modules (room allocations, guest QR sessions, expenses, suppliers, purchase
+// orders...) out of the "complete database" package, and a restore then lost
+// that data.
+async function listTables(conn = db) {
+  const rows = await conn.all(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+  );
+  return rows.map(row => row.name);
+}
+
+async function buildPackage() {
+  const tables = await listTables();
+  const tableData = {};
+  const rowCounts = {};
+  for (const table of tables) {
+    const rows = await db.all(`SELECT * FROM "${table}"`);
+    tableData[table] = rows;
+    rowCounts[table] = rows.length;
+  }
+
+  const property = await db.get('SELECT * FROM properties LIMIT 1');
+  const timestamp = new Date().toISOString();
+  const payload = {
+    format: 'NEXUZY_PMS_PACKAGE',
+    version: '1.2.0',
+    exported_at: timestamp,
+    property_code: property ? property.code : 'NEX-01',
+    property_name: property ? property.name : 'Nexuzy PMS',
+    tables: tableData,
+    row_counts: rowCounts,
+    total_rows: Object.values(rowCounts).reduce((sum, count) => sum + count, 0)
+  };
+
+  // The checksum covers the package as written, before the checksum itself is
+  // appended, so the file can be verified before any data is touched.
+  payload.checksum = crypto.createHash('sha256').update(JSON.stringify(payload, null, 2)).digest('hex');
+
+  const buffer = Buffer.from(JSON.stringify(payload, null, 2), 'utf8');
+  const filename = `nexuzy_backup_${payload.property_code || 'pms'}_${timestamp.replace(/[:.]/g, '-')}.nxp`;
+  fs.writeFileSync(path.join(BACKUP_DIR, filename), buffer);
+
+  return { payload, buffer, filename, tables: tables.length };
+}
+
+async function auditExport(req, { payload, buffer, filename }) {
+  await logAudit({
+    propertyId: req.user.property_id,
+    userId: req.user.id,
+    action: 'EXPORT_NXP_BACKUP',
+    entityType: 'backup',
+    entityId: filename,
+    details: {
+      size_bytes: buffer.length,
+      hash: payload.checksum,
+      tables: Object.keys(payload.tables).length,
+      total_rows: payload.total_rows
+    },
+    req
+  });
+}
 
 // GET /api/v1/backup/export-nxp
 // Exports the entire database into a portable, verified .nxp file
 router.get('/export-nxp', authenticateToken, requireRoles('admin', 'general_manager'), async (req, res) => {
   try {
-    const tableData = {};
-    for (const table of ALL_TABLES) {
-      try {
-        tableData[table] = await db.all(`SELECT * FROM ${table}`);
-      } catch (e) {
-        tableData[table] = [];
-      }
-    }
-
-    const property = await db.get('SELECT * FROM properties LIMIT 1');
-    const timestamp = new Date().toISOString();
-
-    const payload = {
-      format: 'NEXUZY_PMS_PACKAGE',
-      version: '1.1.0',
-      exported_at: timestamp,
-      property_code: property ? property.code : 'NEX-01',
-      property_name: property ? property.name : 'Nexuzy PMS',
-      tables: tableData
-    };
-
-    const contentStr = JSON.stringify(payload, null, 2);
-    const hash = crypto.createHash('sha256').update(contentStr).digest('hex');
-    payload.checksum = hash;
-
-    const finalBuffer = Buffer.from(JSON.stringify(payload, null, 2), 'utf8');
-    const safeDate = timestamp.replace(/[:.]/g, '-');
-    const filename = `nexuzy_backup_${property ? property.code : 'pms'}_${safeDate}.nxp`;
-
-    // Save copy in local backups directory
-    fs.writeFileSync(path.join(BACKUP_DIR, filename), finalBuffer);
-
-    await logAudit({
-      propertyId: req.user.property_id,
-      userId: req.user.id,
-      action: 'EXPORT_NXP_BACKUP',
-      entityType: 'backup',
-      entityId: filename,
-      details: { size_bytes: finalBuffer.length, hash },
-      req
-    });
-
+    const result = await buildPackage();
+    await auditExport(req, result);
     res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(finalBuffer);
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(result.buffer);
   } catch (err) {
     console.error('Export error:', err);
+    res.status(500).json({ success: false, error: `Could not create the backup: ${err.message}` });
+  }
+});
+
+// POST /api/v1/backup/export-nxp/prepare
+// Builds the package and returns a short-lived, signed download link. Browsers
+// and embedded webviews that refuse blob downloads can still fetch the file
+// natively through this URL.
+router.post('/export-nxp/prepare', authenticateToken, requireRoles('admin', 'general_manager'), async (req, res) => {
+  try {
+    const result = await buildPackage();
+    await auditExport(req, result);
+    const token = jwt.sign({ scope: 'nxp-download', file: result.filename }, JWT_SECRET, { expiresIn: '10m' });
+    res.json({
+      success: true,
+      filename: result.filename,
+      size_bytes: result.buffer.length,
+      tables: result.tables,
+      total_rows: result.payload.total_rows,
+      checksum: result.payload.checksum,
+      download_url: `/api/v1/backup/download-nxp?token=${encodeURIComponent(token)}`,
+      message: `Backup ready: ${(result.buffer.length / 1024).toFixed(1)} KB across ${result.tables} tables (${result.payload.total_rows} rows).`
+    });
+  } catch (err) {
+    console.error('Export prepare error:', err);
+    res.status(500).json({ success: false, error: `Could not create the backup: ${err.message}` });
+  }
+});
+
+// GET /api/v1/backup/download-nxp?token=...
+// The token is a short-lived signed link issued by /export-nxp/prepare, so the
+// browser can download without a custom Authorization header.
+router.get('/download-nxp', async (req, res) => {
+  try {
+    let decoded;
+    try {
+      decoded = jwt.verify(String(req.query.token || ''), JWT_SECRET);
+    } catch (err) {
+      return res.status(401).json({ success: false, error: 'This download link has expired. Export the package again.' });
+    }
+    if (!decoded || decoded.scope !== 'nxp-download') {
+      return res.status(403).json({ success: false, error: 'This download link is not valid for a backup file.' });
+    }
+    const filename = path.basename(String(decoded.file || ''));
+    if (!filename || !filename.endsWith('.nxp')) {
+      return res.status(400).json({ success: false, error: 'The backup filename is invalid.' });
+    }
+    const filePath = path.join(BACKUP_DIR, filename);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, error: 'The backup file is no longer on this computer. Export it again.' });
+    }
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(fs.readFileSync(filePath));
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -91,29 +159,52 @@ router.post('/restore-nxp', authenticateToken, requireRoles('admin'), async (req
       });
     }
 
+    // Verify the package before touching a single row.
+    if (nxpData.checksum) {
+      const { checksum, ...rest } = nxpData;
+      const computed = crypto.createHash('sha256').update(JSON.stringify(rest, null, 2)).digest('hex');
+      if (computed !== checksum) {
+        return res.status(400).json({
+          success: false,
+          error: 'The .nxp package checksum does not match. The file is corrupted or was modified, so nothing was restored.'
+        });
+      }
+    }
+
+    // Only tables that exist in this installation are restored. Unknown tables
+    // in an older/newer package are reported instead of aborting the restore.
+    const schemaTables = await listTables();
+    const schemaSet = new Set(schemaTables);
+    const packageTables = Object.keys(nxpData.tables || {}).filter(table => schemaSet.has(table));
+    const unknownTables = Object.keys(nxpData.tables || {}).filter(table => !schemaSet.has(table));
+
     // 1. Disable foreign keys outside transaction
     await db.run('PRAGMA foreign_keys = OFF;');
 
+    let restoredRows = 0;
     try {
       await db.transaction(async () => {
         // 2. Clear current tables in reverse order to respect constraints
-        const reverseTables = [...ALL_TABLES].reverse();
-        for (const table of reverseTables) {
-          await db.run(`DELETE FROM ${table};`);
+        for (const table of [...schemaTables].reverse()) {
+          await db.run(`DELETE FROM "${table}";`);
         }
 
-        // 3. Restore all records table by table
-        for (const table of ALL_TABLES) {
+        // 3. Restore every record, using only columns this schema actually has.
+        for (const table of packageTables) {
           const rows = nxpData.tables[table] || [];
           if (!rows.length) continue;
 
-          const cols = Object.keys(rows[0]);
-          const placeholders = cols.map(() => '?').join(', ');
-          const sql = `INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders})`;
+          const columnInfo = await db.all(`PRAGMA table_info("${table}")`);
+          const validColumns = new Set(columnInfo.map(column => column.name));
+          const cols = Object.keys(rows[0]).filter(column => validColumns.has(column));
+          if (!cols.length) continue;
 
-          for (const r of rows) {
-            const values = cols.map(c => r[c]);
-            await db.run(sql, values);
+          const placeholders = cols.map(() => '?').join(', ');
+          const sql = `INSERT INTO "${table}" (${cols.map(column => `"${column}"`).join(', ')}) VALUES (${placeholders})`;
+
+          for (const row of rows) {
+            await db.run(sql, cols.map(column => row[column]));
+            restoredRows += 1;
           }
         }
       });
@@ -134,7 +225,11 @@ router.post('/restore-nxp', authenticateToken, requireRoles('admin'), async (req
 
     res.json({
       success: true,
-      message: 'Database successfully restored from .nxp package! All tables synchronized.'
+      message: `Database restored from the .nxp package: ${restoredRows} rows across ${packageTables.length} tables.`,
+      restored_rows: restoredRows,
+      restored_tables: packageTables.length,
+      ignored_tables: unknownTables,
+      exported_at: nxpData.exported_at || null
     });
   } catch (err) {
     console.error('Restore error:', err);

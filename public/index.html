@@ -708,6 +708,7 @@
             <p class="text-xs text-slate-400">Independent restaurant billing, 5% GST, KOT generator & "Post to Room" support</p>
           </div>
           <div class="flex flex-wrap gap-2">
+            <button onclick="openRestaurantTableManager()" class="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold">🪑 Tables</button>
             <button onclick="openMenuManager()" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold">📋 Manage Menu</button>
             <button onclick="setPosSubTab('pos')" id="pos-btn-pos" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold">POS Order</button>
             <button onclick="setPosSubTab('kds')" id="pos-btn-kds" class="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-semibold">Kitchen KDS Board</button>
@@ -1261,9 +1262,9 @@
 
             <div class="p-4 bg-slate-800/50 border border-slate-700 rounded-xl space-y-3">
               <div class="flex flex-wrap gap-3">
-                <a href="/api/v1/backup/export-nxp" class="btn-primary inline-flex items-center">
+                <button type="button" id="nxp-export-btn" onclick="downloadNxpBackup()" class="btn-primary inline-flex items-center">
                   💾 Export & Download .nxp Package
-                </a>
+                </button>
               </div>
               <p class="text-[11px] text-slate-400">Generates a verified, checksum-protected Nexuzy PMS Package file.</p>
             </div>
@@ -1326,7 +1327,7 @@
                 </div>
                 <div>
                   <label class="input-label">SMTP Port *</label>
-                  <input type="number" id="smtp-port" class="input-field" value="587">
+                  <input type="number" id="smtp-port" class="input-field" value="587" oninput="syncSmtpSecureFromPort()">
                 </div>
               </div>
               <div class="grid grid-cols-2 gap-3">
@@ -1349,6 +1350,7 @@
                   <label for="smtp-secure" class="text-xs text-slate-300">Use SSL/TLS (Port 465)</label>
                 </div>
               </div>
+              <p class="text-[10px] text-slate-500">Port 465 uses SSL automatically. Port 587 upgrades with STARTTLS. The username is usually the full email address.</p>
 
               <div class="flex gap-2 pt-2">
                 <button type="submit" class="btn-secondary text-xs">Save Mail Setup</button>
@@ -2160,6 +2162,34 @@
     </div>
   </div>
 
+  <!-- MODAL: RESTAURANT TABLE MANAGER -->
+  <div id="modal-table-manager" class="modal-backdrop hidden">
+    <div class="modal-box max-w-3xl max-h-[92vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-800">
+        <div>
+          <h3 class="font-bold text-white text-base">Restaurant Tables</h3>
+          <p class="text-xs text-slate-400">Add tables to the POS floor, rename them, change seats or remove them</p>
+        </div>
+        <button onclick="closeModal('modal-table-manager')" class="text-slate-500 hover:text-white">&times;</button>
+      </div>
+      <form id="form-restaurant-table" onsubmit="handleRestaurantTableSubmit(event)" class="p-3 bg-slate-800/50 border border-slate-700 rounded-xl space-y-2">
+        <input type="hidden" id="table-record-id">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <input type="text" id="table-number" required maxlength="20" placeholder="Table no. (e.g. T7)" class="input-field">
+          <input type="number" id="table-capacity" required min="1" max="50" value="4" placeholder="Seats" class="input-field">
+          <input type="text" id="table-section" list="table-section-options" maxlength="40" placeholder="Section" class="input-field">
+          <div class="flex gap-2">
+            <button type="submit" class="btn-primary text-xs flex-1">Save Table</button>
+            <button type="button" onclick="resetRestaurantTableForm()" class="btn-secondary text-xs">Clear</button>
+          </div>
+        </div>
+        <datalist id="table-section-options"></datalist>
+        <p class="text-[10px] text-slate-500">Section groups tables on the floor (Main Dining, Terrace, Bar). A table that appears on past bills is hidden from the POS instead of being erased, so old bills stay intact.</p>
+      </form>
+      <div id="restaurant-tables-list" class="space-y-2 text-xs mt-3"></div>
+    </div>
+  </div>
+
   <!-- MODAL: STAFF USER MANAGEMENT -->
   <div id="modal-user-manager" class="modal-backdrop hidden">
     <div class="modal-box max-w-4xl max-h-[92vh] overflow-y-auto">
@@ -2266,8 +2296,8 @@
     </div>
   </div>
 
-  <script src="app.js?v=1.2.1b"></script>
-  <script src="p0-ui.js?v=1.2.1b"></script>
+  <script src="app.js?v=1.2.1bl"></script>
+  <script src="p0-ui.js?v=1.2.1bi"></script>
   <!-- Stock item, movement, ledger and purchasing modals -->
   <div id="modal-stock-item" class="modal-backdrop hidden">
     <div class="modal-box max-w-lg">
@@ -2388,7 +2418,7 @@
     </div>
   </div>
 
-  <script src="admin-ui.js?v=1.2.1b"></script>
+  <script src="admin-ui.js?v=1.2.1bk"></script>
   <script src="roomqr-ui.js?v=1.2.1b"></script>
   <script src="inventory-ui.js?v=1.2.1b"></script>
   <script src="allocation-ui.js?v=1.2.1b"></script>
