@@ -16,6 +16,7 @@ router.get('/tasks', authenticateToken, async (req, res) => {
        JOIN room_types rt ON r.room_type_id = rt.id
        LEFT JOIN users u ON ht.assigned_to = u.id
        WHERE ht.property_id = ? AND r.property_id = ?
+         AND ht.status NOT IN ('inspected', 'ready')
        ORDER BY CASE ht.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END, ht.created_at ASC`,
       [req.user.property_id, req.user.property_id]
     );

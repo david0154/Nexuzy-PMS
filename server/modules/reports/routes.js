@@ -1,7 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../../config/database');
-const { authenticateToken } = require('../../middleware/auth');
+const { authenticateToken, requireRoles } = require('../../middleware/auth');
+
+// Financial reporting is a management/cashier responsibility. Operational
+// screens stay open so a kitchen or housekeeping login cannot read revenue.
+const REPORT_ROLES = ['admin', 'general_manager', 'front_desk', 'cashier'];
 
 function round2(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
@@ -100,7 +104,7 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
 });
 
 // GET /api/v1/reports/revenue (Department Breakdown)
-router.get('/revenue', authenticateToken, async (req, res) => {
+router.get('/revenue', authenticateToken, requireRoles(...REPORT_ROLES), async (req, res) => {
   try {
     const revByDept = await db.all(
       `SELECT department, 
@@ -138,7 +142,7 @@ router.get('/revenue', authenticateToken, async (req, res) => {
 // in the outlet. Orders posted to a room are already in folio_entries, so they
 // are excluded here to avoid double counting. Expenses come from the hotel
 // expense ledger. Profit is revenue excluding GST minus operating expenses.
-router.get('/profit-loss', authenticateToken, async (req, res) => {
+router.get('/profit-loss', authenticateToken, requireRoles(...REPORT_ROLES), async (req, res) => {
   try {
     const today = new Date().toISOString().slice(0, 10);
     const validDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
@@ -267,7 +271,7 @@ router.get('/profit-loss', authenticateToken, async (req, res) => {
 });
 
 // GET /api/v1/reports/tax (GST India Summary)
-router.get('/tax', authenticateToken, async (req, res) => {
+router.get('/tax', authenticateToken, requireRoles(...REPORT_ROLES), async (req, res) => {
   try {
     const gstData = await db.all(
       `SELECT tax_rate, 
@@ -292,7 +296,7 @@ router.get('/tax', authenticateToken, async (req, res) => {
 });
 
 // GET /api/v1/reports/audit (Audit trail logs)
-router.get('/audit', authenticateToken, async (req, res) => {
+router.get('/audit', authenticateToken, requireRoles(...REPORT_ROLES), async (req, res) => {
   try {
     const logs = await db.all(
       `SELECT a.*, u.full_name as user_full_name, u.role as user_role
@@ -311,7 +315,7 @@ router.get('/audit', authenticateToken, async (req, res) => {
 // GET /api/v1/reports/performance?from=&to=&format=csv
 // Occupancy, ADR, RevPAR, room-type performance, reservation conversion and
 // housekeeping/restaurant throughput, all scoped to the authenticated property.
-router.get('/performance', authenticateToken, async (req, res) => {
+router.get('/performance', authenticateToken, requireRoles(...REPORT_ROLES), async (req, res) => {
   try {
     const today = new Date().toISOString().slice(0, 10);
     const validDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));

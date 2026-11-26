@@ -16,5 +16,11 @@ if not exist "node_modules\express" (
     exit /b 1
 )
 
-node scripts\launch.js
+rem The installed application ships node\node.exe, and staff PCs may not have
+rem Node.js on PATH. Prefer the bundled runtime so start.bat always works.
+if exist "%~dp0node\node.exe" (
+    "%~dp0node\node.exe" "%~dp0scripts\launch.js"
+) else (
+    node "%~dp0scripts\launch.js"
+)
 pause

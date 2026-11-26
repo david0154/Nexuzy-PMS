@@ -27,14 +27,21 @@ OutputDir={{OUTPUT_DIR}}
 OutputBaseFilename=Nexuzy-PMS-Setup-{#MyAppVersion}
 SetupIconFile={{ICON}}
 UninstallDisplayIcon={app}\nexuzy.ico
-Compression=lzma2/ultra64
+; lzma2/max decompresses in far less memory than ultra64, so setup also
+; completes on 4 GB Windows 11 laptops instead of failing while unpacking.
+Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
-ArchitecturesAllowed=x64
-ArchitecturesInstallIn64BitMode=x64
+; x64compatible also runs on Windows 11 on ARM (the bundled x64 runtime is
+; emulated); plain x64 refused to install on those machines.
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
-CloseApplications=yes
+; PrepareToInstall stops our own node.exe, so the Restart Manager is not needed
+; and cannot block the upgrade on a busy Windows 11 desktop.
+CloseApplications=no
 RestartApplications=no
+UsedUserAreasWarning=no
 SetupLogging=yes
 VersionInfoVersion={{VERSION4}}
 VersionInfoCompany={#MyAppPublisher}
@@ -132,6 +139,20 @@ begin
   // unrelated program that reused a stale PID is never touched.
   StopRunningServer();
   Result := '';
+end;
+
+function InitializeSetup(): Boolean;
+begin
+  Result := True;
+  // Per-user installs need a writable profile folder. Windows 11 with a
+  // redirected or locked profile otherwise fails later with a vague error.
+  if not DirExists(ExpandConstant('{localappdata}')) then
+  begin
+    MsgBox('Nexuzy PMS could not find your Windows user profile folder.' + #13#10 +
+           'Sign in to Windows with a normal user account and run the setup again.',
+           mbError, MB_OK);
+    Result := False;
+  end;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);

@@ -26,6 +26,8 @@ const {
 } = require('../../services/allocation');
 
 const APPROVER_ROLES = ['admin', 'general_manager'];
+// Only reception-side roles may create or change a stay.
+const STAY_WRITE_ROLES = ['admin', 'general_manager', 'front_desk', 'cashier'];
 
 function snapshotMatchesPreview(snapshot, preview) {
   try {
@@ -128,7 +130,7 @@ router.get('/departures', authenticateToken, async (req, res) => {
 });
 
 // POST /api/v1/stays/check-in-reservation (Check in an existing confirmed reservation)
-router.post('/check-in-reservation', authenticateToken, async (req, res) => {
+router.post('/check-in-reservation', authenticateToken, requireRoles(...STAY_WRITE_ROLES), async (req, res) => {
   try {
     const { reservation_id, assigned_room_id, auto_assign = false } = req.body;
     const resv = await db.get(
@@ -217,8 +219,6 @@ router.post('/check-in-reservation', authenticateToken, async (req, res) => {
 
       // 2. Create Folio
       const taxRate = resv.tax_rate || 12.0;
-      const taxAmt = round2(resv.rate_per_night * (taxRate / 100));
-      const totalNightCharge = round2(Number(resv.rate_per_night) + taxAmt);
 
       await conn.run(
         `INSERT INTO folios (id, folio_number, property_id, stay_id, folio_type, status, total_charges, total_payments, balance)
@@ -226,11 +226,12 @@ router.post('/check-in-reservation', authenticateToken, async (req, res) => {
         [folioId, folioNo, req.user.property_id, stayId]
       );
 
-      // 3. Post first night charge
+      // 3. Post first night charge (later nights are posted by the night audit).
+      const firstNightTax = round2(Number(resv.rate_per_night) * (taxRate / 100));
       await conn.run(
         `INSERT INTO folio_entries (id, folio_id, date, department, description, quantity, unit_price, tax_rate, tax_amount, total_amount, created_by)
          VALUES (?, ?, date('now'), 'room_rent', 'Night 1 Room Rent', 1, ?, ?, ?, ?, ?)`,
-        [uuidv4(), folioId, resv.rate_per_night, taxRate, taxAmt, totalNightCharge, req.user.id]
+        [uuidv4(), folioId, resv.rate_per_night, taxRate, firstNightTax, round2(Number(resv.rate_per_night) + firstNightTax), req.user.id]
       );
 
       // Link any prior deposit payments to this folio
@@ -291,7 +292,7 @@ router.post('/check-in-reservation', authenticateToken, async (req, res) => {
 });
 
 // POST /api/v1/stays/walk-in (Instant Walk-In Check In)
-router.post('/walk-in', authenticateToken, async (req, res) => {
+router.post('/walk-in', authenticateToken, requireRoles(...STAY_WRITE_ROLES), async (req, res) => {
   try {
     let {
       first_name, last_name, phone, email, id_type, id_number, room_id, nights, rate_per_night,
@@ -403,8 +404,6 @@ router.post('/walk-in', authenticateToken, async (req, res) => {
 
       // 3. Create Folio & post initial charge
       const taxRate = room.tax_rate || 12.0;
-      const taxAmt = round2(rate_per_night * (taxRate / 100));
-      const totalNightCharge = round2(Number(rate_per_night) + taxAmt);
       const deposit = Number(deposit_paid) || 0;
 
       await conn.run(
@@ -413,10 +412,11 @@ router.post('/walk-in', authenticateToken, async (req, res) => {
         [folioId, folioNo, req.user.property_id, stayId]
       );
 
+      const firstNightTax = round2(Number(rate_per_night) * (taxRate / 100));
       await conn.run(
         `INSERT INTO folio_entries (id, folio_id, date, department, description, quantity, unit_price, tax_rate, tax_amount, total_amount, created_by)
          VALUES (?, ?, date('now'), 'room_rent', 'Night 1 Room Rent', 1, ?, ?, ?, ?, ?)`,
-        [uuidv4(), folioId, rate_per_night, taxRate, taxAmt, totalNightCharge, req.user.id]
+        [uuidv4(), folioId, rate_per_night, taxRate, firstNightTax, round2(Number(rate_per_night) + firstNightTax), req.user.id]
       );
 
       if (deposit > 0) {
@@ -1001,7 +1001,7 @@ router.post('/:id/checkout-payment', authenticateToken, requireRoles(...CHECKOUT
 });
 
 // POST /api/v1/stays/:id/room-move (Transfer guest to another room)
-router.post('/:id/room-move', authenticateToken, async (req, res) => {
+router.post('/:id/room-move', authenticateToken, requireRoles(...STAY_WRITE_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const { target_room_id, reason } = req.body;
@@ -1090,7 +1090,7 @@ router.get('/:id/whatsapp', authenticateToken, requireRoles(...CHECKOUT_ROLES), 
 });
 
 // POST /api/v1/stays/:id/extend (Extend an occupied stay's departure date)
-router.post('/:id/extend', authenticateToken, async (req, res) => {
+router.post('/:id/extend', authenticateToken, requireRoles(...STAY_WRITE_ROLES), async (req, res) => {
   try {
     const nights = Number(req.body.nights);
     if (!Number.isInteger(nights) || nights < 1 || nights > 365) {

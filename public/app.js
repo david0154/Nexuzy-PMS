@@ -301,10 +301,63 @@ function handleLogout() {
   showLoginModal();
 }
 
+// =========================================================
+// ROLE BASED ACCESS
+// A role only receives the screens it needs. `null` means every screen.
+// This mirrors the server-side requireRoles guards: hiding a button is a
+// usability aid, the API still rejects an out-of-role action.
+// =========================================================
+const ROLE_TAB_ACCESS = {
+  admin: null,
+  general_manager: null,
+  front_desk: ['dashboard', 'frontdesk', 'groups', 'reservations', 'rooms', 'allocation', 'roomqr', 'restaurant', 'folios', 'cashier', 'expenses', 'nightaudit', 'reports'],
+  cashier: ['dashboard', 'frontdesk', 'reservations', 'folios', 'cashier', 'expenses', 'restaurant', 'reports'],
+  captain: ['dashboard', 'restaurant', 'folios', 'inventory'],
+  waiter: ['dashboard', 'restaurant'],
+  kitchen: ['dashboard', 'restaurant'],
+  housekeeping: ['dashboard', 'rooms'],
+  maintenance: ['dashboard', 'rooms'],
+  inventory: ['dashboard', 'inventory']
+};
+
+// Roles that receive live guest-service request alerts (matches the server inbox).
+const GUEST_REQUEST_ALERT_ROLES = ['admin', 'general_manager', 'front_desk', 'cashier', 'housekeeping', 'maintenance', 'reception'];
+
+function canAccessTab(tabId) {
+  if (!currentUser) return true;
+  const allowed = ROLE_TAB_ACCESS[currentUser.role];
+  if (allowed === undefined || allowed === null) return true;
+  return allowed.includes(tabId);
+}
+
+function applyRolePermissions() {
+  document.querySelectorAll('[id^="tab-btn-"]').forEach(btn => {
+    const tabId = btn.id.replace('tab-btn-', '');
+    btn.classList.toggle('hidden', !canAccessTab(tabId));
+  });
+
+  // A section heading in the More menu is pointless when all its items are hidden.
+  const menu = document.getElementById('nav-more-menu');
+  if (menu) {
+    menu.querySelectorAll(':scope > div').forEach(heading => {
+      const buttons = [];
+      let next = heading.nextElementSibling;
+      while (next && next.tagName === 'BUTTON') { buttons.push(next); next = next.nextElementSibling; }
+      heading.classList.toggle('hidden', buttons.length > 0 && buttons.every(b => b.classList.contains('hidden')));
+    });
+    const moreBtn = document.getElementById('nav-more-btn');
+    if (moreBtn) {
+      const anyVisible = [...menu.querySelectorAll('button')].some(b => !b.classList.contains('hidden'));
+      moreBtn.classList.toggle('hidden', !anyVisible);
+    }
+  }
+}
+
 function updateUserUI() {
   if (!currentUser) return;
   document.getElementById('header-user-name').textContent = currentUser.full_name;
   document.getElementById('header-user-role').textContent = currentUser.role.replace('_', ' ');
+  applyRolePermissions();
 }
 
 function updatePropertyUI() {
@@ -357,6 +410,9 @@ document.addEventListener('keydown', (event) => {
 });
 
 function switchTab(tabId) {
+  // Never leave a staff member on a screen their role does not own, even when a
+  // shortcut or a stale link asks for it.
+  if (!canAccessTab(tabId)) tabId = 'dashboard';
   activeTab = tabId;
   closeMoreMenu();
 
@@ -1064,10 +1120,13 @@ async function loadRoomsHousekeepingData() {
     const hkContainer = document.getElementById('housekeeping-tasks-list');
     hkContainer.innerHTML = '';
 
-    if (!hkData.tasks.length) {
+    // Cleaned-and-inspected work is done: it must leave the pending list.
+    const openTasks = (hkData.tasks || []).filter(t => !['inspected', 'ready'].includes(t.status));
+
+    if (!openTasks.length) {
       hkContainer.innerHTML = `<div class="text-slate-500 text-xs py-4">No pending housekeeping tasks.</div>`;
     } else {
-      hkData.tasks.forEach(t => {
+      openTasks.forEach(t => {
         const item = document.createElement('div');
         item.className = 'p-3 bg-slate-800/60 border border-slate-800 rounded-xl flex items-center justify-between';
         item.innerHTML = `
@@ -1523,6 +1582,8 @@ let kitchenAudioContext = null;
 let kitchenPollTimer = null;
 let kitchenKnownTickets = new Set();
 let kitchenPollInitialized = false;
+let guestRequestKnown = new Set();
+let guestRequestPollInitialized = false;
 
 function unlockKitchenAudio() {
   try {
@@ -1536,25 +1597,60 @@ function unlockKitchenAudio() {
 
 document.addEventListener('pointerdown', unlockKitchenAudio, { once: true });
 
+let kitchenAlarmNodes = [];
+let kitchenAlarmTimer = null;
+
+function stopKitchenAlarm() {
+  if (kitchenAlarmTimer) clearTimeout(kitchenAlarmTimer);
+  kitchenAlarmTimer = null;
+  kitchenAlarmNodes.forEach((osc) => { try { osc.stop(); } catch (err) { /* already stopped */ } });
+  kitchenAlarmNodes = [];
+}
+
+// A kitchen has to hear a new order over extractor fans and a busy dining room,
+// so this is a loud seven-second two-tone siren instead of a short ding. It
+// repeats once more after a pause and stops only when staff dismiss the alert.
 function playKitchenChime() {
   try {
     unlockKitchenAudio();
     const ctx = kitchenAudioContext;
     if (!ctx) return;
-    const start = ctx.currentTime;
-    [0, 0.22, 0.44].forEach((offset) => {
+    stopKitchenAlarm();
+
+    const start = ctx.currentTime + 0.02;
+    const master = ctx.createGain();
+    master.gain.setValueAtTime(0.55, start);
+    master.connect(ctx.destination);
+
+    const bursts = 8;
+    for (let i = 0; i < bursts; i += 1) {
+      const at = start + i * 0.92;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, start + offset);
-      gain.gain.setValueAtTime(0.0001, start + offset);
-      gain.gain.exponentialRampToValueAtTime(0.35, start + offset + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + offset + 0.18);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(start + offset);
-      osc.stop(start + offset + 0.2);
-    });
+      osc.type = i % 2 === 0 ? 'sawtooth' : 'square';
+      osc.frequency.setValueAtTime(680, at);
+      osc.frequency.linearRampToValueAtTime(1250, at + 0.22);
+      osc.frequency.linearRampToValueAtTime(680, at + 0.44);
+      osc.frequency.linearRampToValueAtTime(1250, at + 0.66);
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.exponentialRampToValueAtTime(1, at + 0.03);
+      gain.gain.setValueAtTime(1, at + 0.60);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.72);
+      osc.connect(gain).connect(master);
+      osc.start(at);
+      osc.stop(at + 0.75);
+      kitchenAlarmNodes.push(osc);
+    }
+
+    // A second pass after a short break makes the alert impossible to miss.
+    kitchenAlarmTimer = setTimeout(playKitchenChime, 9500);
   } catch (err) { /* Keep the visual alert if the browser blocks audio. */ }
+}
+
+function dismissKitchenAlert() {
+  stopKitchenAlarm();
+  const banner = document.getElementById('kds-alert-banner');
+  if (banner) banner.classList.add('hidden');
 }
 
 function kitchenText(value) {
@@ -1575,11 +1671,34 @@ function showKitchenAlert(tickets) {
         <div class="text-[11px] text-amber-200 mt-0.5">${kitchenText(first.kot_number || 'New KOT')} · ${kitchenText(where)}${kitchenText(extra)}</div>
         <button type="button" onclick="switchTab('restaurant'); if (typeof setPosSubTab === 'function') setPosSubTab('kds');" class="mt-2 px-2 py-1 rounded bg-amber-500 text-slate-950 text-[10px] font-black">Open Kitchen Display</button>
       </div>
-      <button type="button" onclick="document.getElementById('kds-alert-banner').classList.add('hidden')" class="text-slate-400 hover:text-white text-lg leading-none">&times;</button>
+      <button type="button" onclick="dismissKitchenAlert()" class="text-slate-400 hover:text-white text-lg leading-none">&times;</button>
     </div>`;
   banner.classList.remove('hidden');
   clearTimeout(showKitchenAlert.timer);
-  showKitchenAlert.timer = setTimeout(() => banner.classList.add('hidden'), 30000);
+  showKitchenAlert.timer = setTimeout(() => dismissKitchenAlert(), 45000);
+}
+
+// Guest QR service requests (towels, water, repairs) need the same loud alert as
+// a kitchen order: they used to arrive only inside the reception inbox.
+function showGuestRequestAlert(requests) {
+  const banner = document.getElementById('kds-alert-banner');
+  if (!banner) return;
+  const first = requests[0];
+  const extra = requests.length > 1 ? ` +${requests.length - 1} more` : '';
+  banner.innerHTML = `
+    <div class="flex items-start gap-3">
+      <span class="text-xl">🛎</span>
+      <div class="flex-1">
+        <div class="text-xs font-black text-white">New guest request</div>
+        <div class="text-[11px] text-amber-200 mt-0.5">Room ${kitchenText(first.room_number || '—')} · ${kitchenText(String(first.category || 'service').replace(/_/g, ' '))}${kitchenText(extra)}</div>
+        <div class="text-[10px] text-slate-400 mt-0.5">${kitchenText(first.description || '')}</div>
+        <button type="button" onclick="switchTab('frontdesk')" class="mt-2 px-2 py-1 rounded bg-amber-500 text-slate-950 text-[10px] font-black">Open Guest Requests</button>
+      </div>
+      <button type="button" onclick="dismissKitchenAlert()" class="text-slate-400 hover:text-white text-lg leading-none">&times;</button>
+    </div>`;
+  banner.classList.remove('hidden');
+  clearTimeout(showKitchenAlert.timer);
+  showKitchenAlert.timer = setTimeout(() => dismissKitchenAlert(), 45000);
 }
 
 async function pollKitchenOrders() {
@@ -1603,12 +1722,38 @@ async function pollKitchenOrders() {
   } catch (err) { /* Polling must never disturb billing or reception work. */ }
 }
 
+async function pollGuestRequests() {
+  if (!localStorage.getItem('nexuzy_token')) return;
+  if (!currentUser || !GUEST_REQUEST_ALERT_ROLES.includes(currentUser.role)) return;
+  try {
+    const data = await api('/guest-requests?status=pending');
+    const requests = data.requests || [];
+    const currentIds = new Set(requests.map((request) => request.id));
+    const fresh = requests.filter((request) => !guestRequestKnown.has(request.id));
+    guestRequestKnown = currentIds;
+    if (!guestRequestPollInitialized) {
+      guestRequestPollInitialized = true;
+      return;
+    }
+    if (!fresh.length) return;
+    playKitchenChime();
+    showGuestRequestAlert(fresh);
+    if (activeTab === 'frontdesk' && typeof loadFrontDeskData === 'function') loadFrontDeskData();
+  } catch (err) { /* A role without inbox access simply gets no request alert. */ }
+}
+
 function startKitchenOrderPolling() {
   if (kitchenPollTimer) return;
   kitchenKnownTickets = new Set();
   kitchenPollInitialized = false;
+  guestRequestKnown = new Set();
+  guestRequestPollInitialized = false;
   pollKitchenOrders();
-  kitchenPollTimer = setInterval(pollKitchenOrders, 12000);
+  pollGuestRequests();
+  kitchenPollTimer = setInterval(() => {
+    pollKitchenOrders();
+    pollGuestRequests();
+  }, 12000);
 }
 
 function stopKitchenOrderPolling() {
@@ -1616,6 +1761,9 @@ function stopKitchenOrderPolling() {
   kitchenPollTimer = null;
   kitchenKnownTickets = new Set();
   kitchenPollInitialized = false;
+  guestRequestKnown = new Set();
+  guestRequestPollInitialized = false;
+  stopKitchenAlarm();
   const banner = document.getElementById('kds-alert-banner');
   if (banner) banner.classList.add('hidden');
 }
@@ -1651,9 +1799,11 @@ async function loadKdsTickets() {
           `).join('')}
         </div>
         <div class="pt-2 border-t border-slate-700 flex justify-end space-x-2">
-          ${kt.status === 'preparing' 
-            ? `<button onclick="updateKdsTicketStatus('${kt.id}', 'ready')" class="px-3 py-1 bg-emerald-600 text-white rounded text-xs font-bold">Mark Ready</button>`
-            : `<button onclick="updateKdsTicketStatus('${kt.id}', 'served')" class="px-3 py-1 bg-indigo-600 text-white rounded text-xs font-bold">Mark Served</button>`}
+          ${kt.status === 'new'
+            ? `<button onclick="updateKdsTicketStatus('${kt.id}', 'preparing')" class="px-3 py-1 bg-amber-500 text-slate-950 rounded text-xs font-black">Accept Order</button>`
+            : kt.status === 'preparing'
+              ? `<button onclick="updateKdsTicketStatus('${kt.id}', 'ready')" class="px-3 py-1 bg-emerald-600 text-white rounded text-xs font-bold">Mark Ready</button>`
+              : `<button onclick="updateKdsTicketStatus('${kt.id}', 'served')" class="px-3 py-1 bg-indigo-600 text-white rounded text-xs font-bold">Mark Served</button>`}
         </div>
       `;
       container.appendChild(card);
@@ -1693,6 +1843,9 @@ async function loadFoliosData() {
       const opt = document.createElement('option');
       opt.value = s.folio_id;
       opt.textContent = `Room ${s.room_number}: ${s.guest_name} (${s.folio_number || 'Folio'})`;
+      // The reference numbers are searchable but stay out of the visible label.
+      opt.dataset.search = [s.stay_number, s.booking_reference, s.room_number, s.guest_name, s.folio_number]
+        .filter(Boolean).join(' ').toLowerCase();
       selector.appendChild(opt);
     });
 
@@ -1711,9 +1864,30 @@ async function loadFoliosData() {
       currentSelectedFolioId = selector.options[0].value;
     }
 
-    loadSelectedFolio();
+    filterFolioSelector();
+    if (!(document.getElementById('folio-search')?.value || '').trim()) loadSelectedFolio();
   } catch (err) {
     console.error('Error loading folios:', err);
+  }
+}
+
+// Search folios by stay number, advance-booking reference, room or guest name.
+function filterFolioSelector() {
+  const input = document.getElementById('folio-search');
+  const selector = document.getElementById('folio-selector');
+  if (!input || !selector) return;
+  const term = input.value.trim().toLowerCase();
+  let firstMatch = null;
+  [...selector.options].forEach((opt) => {
+    const haystack = `${opt.textContent} ${opt.dataset.search || ''}`.toLowerCase();
+    const match = !term || haystack.includes(term);
+    opt.hidden = !match;
+    opt.disabled = !match;
+    if (match && !firstMatch) firstMatch = opt;
+  });
+  if (term && firstMatch) {
+    selector.value = firstMatch.value;
+    loadSelectedFolio();
   }
 }
 

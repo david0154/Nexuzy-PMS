@@ -819,7 +819,10 @@ async function availabilityTimeline(conn, propertyId, options = {}) {
             reference: stay.stay_number
           };
         }
-        if (room.operational_status === 'occupied') {
+        // A room flagged occupied with no stay row only describes the live state
+        // of today. Painting the whole visible window from operational_status
+        // made a two-night booking look like a week-long stay.
+        if (room.operational_status === 'occupied' && day === isoDay(0)) {
           return { date: day, status: 'occupied', label: 'Occupied' };
         }
         if (BLOCKING_ROOM_STATUSES.includes(room.operational_status) || room.maintenance_status === 'under_repair' || maintenance.has(room.id)) {

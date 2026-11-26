@@ -417,11 +417,17 @@ async function confirmCheckoutPreview(conn, { propertyId, stayId, preview, userI
 }
 
 async function restaurantOrderDetails(conn, folioId) {
+  // Each order is printed with its food items and the stay / advance-booking
+  // reference it belongs to, so the paper bill can be traced back in the app.
   const rows = await conn.all(
-    `SELECT ro.id, ro.order_number, ro.total_amount, oi.item_name, oi.quantity,
-            oi.unit_price, oi.total_amount AS line_total
+    `SELECT ro.id, ro.order_number, ro.total_amount, ro.settled_at,
+            st.stay_number, res.booking_reference, rm.room_number,
+            oi.item_name, oi.quantity, oi.unit_price, oi.total_amount AS line_total
      FROM folio_entries fe
      JOIN restaurant_orders ro ON fe.reference_id = ro.id
+     LEFT JOIN stays st ON ro.stay_id = st.id
+     LEFT JOIN reservations res ON st.reservation_id = res.id
+     LEFT JOIN rooms rm ON ro.room_id = rm.id
      LEFT JOIN order_items oi ON oi.order_id = ro.id
      WHERE fe.folio_id = ? AND fe.reference_type = 'restaurant_order'
      ORDER BY ro.settled_at ASC, oi.created_at ASC`,
@@ -430,7 +436,15 @@ async function restaurantOrderDetails(conn, folioId) {
   const byOrder = new Map();
   for (const row of rows) {
     if (!byOrder.has(row.id)) {
-      byOrder.set(row.id, { order_number: row.order_number, total_amount: row.total_amount, items: [] });
+      byOrder.set(row.id, {
+        order_number: row.order_number,
+        total_amount: row.total_amount,
+        settled_at: row.settled_at,
+        stay_number: row.stay_number,
+        booking_reference: row.booking_reference,
+        room_number: row.room_number,
+        items: []
+      });
     }
     if (row.item_name) {
       byOrder.get(row.id).items.push({

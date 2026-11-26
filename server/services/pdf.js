@@ -73,7 +73,7 @@ function drawItemRow(doc, row, y, isLast = false) {
   let x = PAGE_MARGIN;
   const descriptionHeight = doc.font('Helvetica').fontSize(7.5)
     .heightOfString(row.description, { width: TABLE_COLUMNS[0].width - 8 });
-  const rowHeight = Math.max(16, descriptionHeight + 6);
+  const rowHeight = Math.max(14, descriptionHeight + 5);
 
   doc.fillColor('#0f172a').font('Helvetica').fontSize(7.5);
   for (const column of TABLE_COLUMNS) {
@@ -211,12 +211,12 @@ function buildInvoiceDocument(doc, invoice) {
   if (invoice.payment_method) meta.push(['Payment', String(invoice.payment_method).replace(/_/g, ' ')]);
   drawMetaBlock(doc, meta, PAGE_MARGIN + 300, y, 215);
 
-  y = Math.max(customerY + 8, y + 60);
+  y = Math.max(customerY + 6, y + 52);
   y = drawTableHeader(doc, y);
   const rows = tableRows(invoice.items, Boolean(invoice.is_restaurant_bill));
 
   for (let index = 0; index < rows.length; index += 1) {
-    if (y > doc.page.height - 76) {
+    if (y > doc.page.height - 64) {
       doc.addPage();
       y = PAGE_MARGIN;
       y = drawTableHeader(doc, y);
@@ -232,30 +232,35 @@ function buildInvoiceDocument(doc, invoice) {
 
   const restaurantOrders = invoice.is_restaurant_bill ? [] : (invoice.restaurant_orders || []);
   if (restaurantOrders.length) {
-    if (y > doc.page.height - 140) { doc.addPage(); y = PAGE_MARGIN; }
-    y += 6;
+    if (y > doc.page.height - 110) { doc.addPage(); y = PAGE_MARGIN; }
+    y += 5;
     doc.fillColor('#64748b').font('Helvetica-Bold').fontSize(7)
       .text('RESTAURANT ORDERS POSTED TO THIS BILL', PAGE_MARGIN, y, { width: CONTENT_WIDTH });
-    y += 11;
+    y += 10;
     for (const order of restaurantOrders) {
-      if (y > doc.page.height - 76) { doc.addPage(); y = PAGE_MARGIN; }
+      if (y > doc.page.height - 60) { doc.addPage(); y = PAGE_MARGIN; }
+      const reference = [
+        order.stay_number ? `Stay ${order.stay_number}` : null,
+        order.booking_reference ? `Ref ${order.booking_reference}` : null,
+        order.room_number ? `Room ${order.room_number}` : null
+      ].filter(Boolean).join('  |  ');
       doc.fillColor('#334155').font('Helvetica-Bold').fontSize(7.5)
-        .text(`Order ${order.order_number || ''}`, PAGE_MARGIN, y, { width: 160 });
+        .text(`Order ${order.order_number || ''}${reference ? `  -  ${reference}` : ''}`, PAGE_MARGIN, y, { width: CONTENT_WIDTH - 100 });
       doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(7.5)
         .text(money(order.total_amount), PAGE_MARGIN + CONTENT_WIDTH - 90, y, { width: 90, align: 'right' });
-      y += 10;
+      y += 9;
       for (const item of order.items || []) {
-        if (y > doc.page.height - 64) { doc.addPage(); y = PAGE_MARGIN; }
+        if (y > doc.page.height - 56) { doc.addPage(); y = PAGE_MARGIN; }
         doc.fillColor('#475569').font('Helvetica').fontSize(7)
           .text(`${Number(item.quantity) || 1} x ${text(item.item_name)}`, PAGE_MARGIN + 8, y, { width: 300 });
         doc.fillColor('#334155').font('Helvetica').fontSize(7)
           .text(money(item.total_amount), PAGE_MARGIN + CONTENT_WIDTH - 90, y, { width: 90, align: 'right' });
-        y += 9;
+        y += 8;
       }
     }
   }
 
-  if (y > doc.page.height - 130) {
+  if (y > doc.page.height - 118) {
     doc.addPage();
     y = PAGE_MARGIN;
   }
@@ -268,7 +273,7 @@ function buildInvoiceDocument(doc, invoice) {
   const paid = invoice.paid_amount;
   const balance = invoice.balance_due !== undefined ? invoice.balance_due : (Number(grand) - Number(paid || 0));
 
-  y += 10;
+  y += 7;
   const totalLine = (label, value, bold = false) => {
     doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(bold ? 10 : 8)
       .fillColor(bold ? '#0f172a' : '#475569')
@@ -276,7 +281,7 @@ function buildInvoiceDocument(doc, invoice) {
     doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(bold ? 10 : 8)
       .fillColor(bold ? '#4338ca' : '#0f172a')
       .text(money(value), totalsX + totalsWidth / 2, y, { width: totalsWidth / 2, align: 'right' });
-    y += bold ? 17 : 14;
+    y += bold ? 16 : 12;
   };
   totalLine('Taxable Value', invoice.taxable_value !== undefined ? invoice.taxable_value : subtotal);
   if (invoice.is_tax_invoice) {

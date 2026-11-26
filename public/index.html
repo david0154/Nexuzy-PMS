@@ -10,7 +10,7 @@
   <!-- Tailwind is bundled locally so first-time setup, login and billing work
        on hotel PCs without an internet connection. -->
   <script src="/vendor/tailwind.js"></script>
-  <link rel="stylesheet" href="styles.css?v=1.2.1bb">
+  <link rel="stylesheet" href="styles.css?v=1.2.1bf">
 </head>
 <body class="bg-slate-900 text-slate-100 font-sans antialiased min-h-screen flex flex-col selection:bg-indigo-500 selection:text-white">
 
@@ -871,7 +871,8 @@
             <h2 class="text-lg font-bold text-white">Guest Folios & India GST Billing</h2>
             <p class="text-xs text-slate-400">Complete transaction ledger, payments, folio transfers & India GST Tax Invoices</p>
           </div>
-          <div class="flex items-center space-x-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <input type="search" id="folio-search" oninput="filterFolioSelector()" placeholder="Search stay no / booking ref / room / guest" class="px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs w-64">
             <select id="folio-selector" onchange="loadSelectedFolio()" class="px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs">
             </select>
           </div>

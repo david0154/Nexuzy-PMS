@@ -635,11 +635,42 @@ guestRouter.get('/bill', async (req, res) => {
     ).catch(() => []);
 
     const room = entries.filter(e => e.department === 'room_rent');
+
+    // The night audit posts one night at a time, so halfway through a two-night
+    // stay the folio held a single night of rent. The guest bill also previews
+    // the nights still to be posted so the payable amount covers the whole stay.
+    const stayNights = Math.max(1, Math.round(
+      (new Date(req.guestStay.expected_check_out) - new Date(req.guestStay.check_in_time)) / 86400000
+    ) || 1);
+    const postedNights = room.reduce((sum, entry) => sum + Number(entry.quantity || 0), 0);
+    const pendingNights = Math.max(0, stayNights - postedNights);
+    let projectedRoomCharge = 0;
+    if (pendingNights > 0) {
+      const rate = Number(req.guestStay.nightly_rate) || 0;
+      const lastRoomEntry = room[room.length - 1] || {};
+      const taxRate = lastRoomEntry.tax_rate !== undefined
+        ? Number(lastRoomEntry.tax_rate) || 0
+        : Number(property.default_room_tax_rate) || 0;
+      const nightTax = round2(rate * (taxRate / 100));
+      projectedRoomCharge = round2((rate + nightTax) * pendingNights);
+      room.push({
+        date: null,
+        description: `Room rent - ${pendingNights} night(s) to be posted by night audit`,
+        quantity: pendingNights,
+        unit_price: rate,
+        tax_rate: taxRate,
+        tax_amount: round2(nightTax * pendingNights),
+        total_amount: projectedRoomCharge,
+        department: 'room_rent',
+        pending: true
+      });
+    }
+
     const restaurant = entries.filter(e => ['restaurant', 'room_service'].includes(e.department));
     const localTax = entries.filter(e => e.department === 'local_tax');
     const rounding = entries.filter(e => e.department === 'rounding');
     const other = entries.filter(e => !['room_rent', 'restaurant', 'room_service', 'local_tax', 'rounding'].includes(e.department));
-    const totalCharges = round2(entries.reduce((sum, e) => sum + Number(e.total_amount || 0), 0));
+    const totalCharges = round2(entries.reduce((sum, e) => sum + Number(e.total_amount || 0), 0) + projectedRoomCharge);
     const totalPaid = round2(payments.reduce((sum, p) => sum + Number(p.amount || 0), 0));
     const totalRefunds = round2(refunds.reduce((sum, r) => sum + Number(r.amount || 0), 0));
     const balance = round2(totalCharges - totalPaid + totalRefunds);
@@ -652,7 +683,8 @@ guestRouter.get('/bill', async (req, res) => {
       tax_rate: e.tax_rate,
       tax_amount: e.tax_amount,
       total_amount: e.total_amount,
-      department: e.department
+      department: e.department,
+      pending: Boolean(e.pending)
     }));
 
     res.json({
@@ -664,6 +696,8 @@ guestRouter.get('/bill', async (req, res) => {
       guest_name: `${req.guestSession.first_name || ''} ${req.guestSession.last_name || ''}`.trim() || 'Guest',
       check_in_time: req.guestStay.check_in_time,
       expected_check_out: req.guestStay.expected_check_out,
+      stay_nights: stayNights,
+      pending_room_nights: pendingNights,
       currency_symbol: property.currency_symbol || '₹',
       folio_status: folio.status,
       charges: {

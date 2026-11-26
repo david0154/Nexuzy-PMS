@@ -2,11 +2,14 @@ const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const db = require('../../config/database');
-const { authenticateToken } = require('../../middleware/auth');
+const { authenticateToken, requireRoles } = require('../../middleware/auth');
 const { logAudit } = require('../../middleware/audit');
 
+// A cashier shift holds the drawer float and collections.
+const CASHIER_ROLES = ['admin', 'general_manager', 'front_desk', 'cashier'];
+
 // GET /api/v1/cashier/current-shift
-router.get('/current-shift', authenticateToken, async (req, res) => {
+router.get('/current-shift', authenticateToken, requireRoles(...CASHIER_ROLES), async (req, res) => {
   try {
     const shift = await db.get(
       `SELECT s.*, u.full_name as cashier_name
@@ -24,7 +27,7 @@ router.get('/current-shift', authenticateToken, async (req, res) => {
 });
 
 // POST /api/v1/cashier/open-shift
-router.post('/open-shift', authenticateToken, async (req, res) => {
+router.post('/open-shift', authenticateToken, requireRoles(...CASHIER_ROLES), async (req, res) => {
   try {
     const { opening_float = 0, notes } = req.body;
 
@@ -63,7 +66,7 @@ router.post('/open-shift', authenticateToken, async (req, res) => {
 });
 
 // POST /api/v1/cashier/close-shift
-router.post('/close-shift', authenticateToken, async (req, res) => {
+router.post('/close-shift', authenticateToken, requireRoles(...CASHIER_ROLES), async (req, res) => {
   try {
     const { closing_cash, notes } = req.body;
 
@@ -122,7 +125,7 @@ router.post('/close-shift', authenticateToken, async (req, res) => {
 });
 
 // GET /api/v1/cashier/history
-router.get('/history', authenticateToken, async (req, res) => {
+router.get('/history', authenticateToken, requireRoles(...CASHIER_ROLES), async (req, res) => {
   try {
     const shifts = await db.all(
       `SELECT s.*, u.full_name as cashier_name
