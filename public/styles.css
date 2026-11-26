@@ -1,0 +1,252 @@
+/* Nexuzy PMS Styling */
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+}
+
+/* Tab button styling */
+.tab-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 0.85rem;
+  border-radius: 0.65rem;
+  color: #94a3b8;
+  font-weight: 500;
+  transition: all 0.15s ease-in-out;
+  white-space: nowrap;
+}
+
+.tab-button:hover {
+  color: #ffffff;
+  background-color: #1e293b;
+}
+
+.tab-button.active-tab {
+  color: #ffffff;
+  background-color: #4f46e5;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+}
+
+/* Stat card */
+.stat-card {
+  background-color: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 1rem;
+  padding: 1rem;
+}
+
+/* Standard Buttons */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  background-color: #4f46e5;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 0.75rem;
+  transition: all 0.15s ease-in-out;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+}
+
+.btn-primary:hover {
+  background-color: #4338ca;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  color: #cbd5e1;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 0.75rem;
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-secondary:hover {
+  background-color: #334155;
+  color: #ffffff;
+}
+
+/* Modal styling */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(2, 6, 23, 0.75);
+  backdrop-filter: blur(4px);
+  padding: 1rem;
+}
+
+.modal-box {
+  background-color: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 1.25rem;
+  padding: 1.5rem;
+  width: 100%;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.input-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-bottom: 0.25rem;
+}
+
+.input-field {
+  width: 100%;
+  padding: 0.5rem 0.85rem;
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 0.75rem;
+  color: #ffffff;
+  font-size: 0.75rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.input-field:focus {
+  border-color: #6366f1;
+}
+
+/* Navigation "More" dropdown: fixed so the horizontally scrolling tab bar cannot clip it. */
+.nav-more-menu {
+  position: fixed;
+  top: 108px;
+  right: 14px;
+  z-index: 200;
+  width: 224px;
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+}
+
+.nav-more-menu .tab-button {
+  display: flex;
+  width: 100%;
+  font-size: 11px;
+  padding: 6px 8px;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .nav-more-menu { right: 8px; width: 224px; }
+}
+
+/* Light theme: persistent preference, applied to the body by app.js. */
+body.theme-light {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+body.theme-light .bg-slate-950,
+body.theme-light .bg-slate-900,
+body.theme-light .bg-slate-900\/90,
+body.theme-light .bg-slate-900\/80,
+body.theme-light .bg-slate-800,
+body.theme-light .bg-slate-800\/80,
+body.theme-light .bg-slate-800\/60,
+body.theme-light .bg-slate-800\/50,
+body.theme-light .bg-slate-800\/40,
+body.theme-light .bg-slate-800\/30,
+body.theme-light .stat-card,
+body.theme-light .modal-box {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+body.theme-light header,
+body.theme-light footer,
+body.theme-light nav,
+body.theme-light .tab-button {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #475569 !important;
+}
+
+body.theme-light .tab-button:hover {
+  background-color: #eef2ff !important;
+  color: #312e81 !important;
+}
+
+body.theme-light .tab-button.active-tab {
+  background-color: #4f46e5 !important;
+  color: #ffffff !important;
+}
+
+body.theme-light .text-white,
+body.theme-light .text-slate-100,
+body.theme-light .text-slate-200,
+body.theme-light .text-slate-300 {
+  color: #0f172a !important;
+}
+
+body.theme-light .text-slate-400,
+body.theme-light .text-slate-500 {
+  color: #64748b !important;
+}
+
+body.theme-light .border-slate-800,
+body.theme-light .border-slate-700,
+body.theme-light .divide-slate-800 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #e2e8f0 !important;
+}
+
+body.theme-light .input-field,
+body.theme-light .btn-secondary {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+body.theme-light .btn-secondary:hover {
+  background-color: #e2e8f0 !important;
+}
+
+body.theme-light .modal-backdrop {
+  background-color: rgba(15, 23, 42, 0.4) !important;
+}
+
+/* Print styling */
+@media print {
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+  header, nav, footer, button, .modal-backdrop {
+    display: none !important;
+  }
+  #modal-invoice {
+    display: block !important;
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+  }
+  .modal-box {
+    box-shadow: none !important;
+    border: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+}

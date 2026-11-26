@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  nexuzy-pms:
+    build: .
+    container_name: nexuzy-pms
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - JWT_SECRET=nexuzy-pms-production-jwt-key-change-me
+      - DB_PATH=/app/data/nexuzy.db
+    volumes:
+      - ./data:/app/data
+      - ./backups:/app/backups

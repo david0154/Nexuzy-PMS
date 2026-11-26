@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Guest Services</title>
+  <style>
+    :root {
+      --brand: #7c3aed;
+      --brand-dark: #5b21b6;
+      --ink: #16121f;
+      --muted: #6b6478;
+      --line: #e9e4f2;
+      --bg: #faf8ff;
+      --ok: #15803d;
+      --warn: #b45309;
+      --danger: #be123c;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0; background: var(--bg); color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 16px; line-height: 1.45;
+    }
+    header.hero {
+      background: linear-gradient(135deg, var(--brand-dark), var(--brand));
+      color: #fff; padding: 22px 18px 26px; border-radius: 0 0 26px 26px;
+    }
+    .brand-row { display: flex; align-items: center; gap: 12px; }
+    .brand-row img { width: 46px; height: 46px; object-fit: contain; background: #fff; border-radius: 12px; padding: 4px; }
+    .brand-row h1 { font-size: 20px; margin: 0; font-weight: 800; letter-spacing: .2px; }
+    .brand-row p { margin: 2px 0 0; font-size: 12px; opacity: .82; }
+    .room-chip {
+      display: inline-flex; align-items: center; gap: 8px; margin-top: 16px;
+      background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.25);
+      padding: 8px 14px; border-radius: 999px; font-weight: 800; font-size: 15px;
+    }
+    .welcome { margin: 14px 0 0; font-size: 14px; opacity: .94; }
+    main { padding: 16px 16px 110px; max-width: 680px; margin: 0 auto; }
+    .card { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 16px; margin-bottom: 14px; box-shadow: 0 2px 10px rgba(23,16,45,.04); }
+    .card h2 { font-size: 16px; margin: 0 0 4px; font-weight: 800; }
+    .card p.sub { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+    .wifi { border-left: 5px solid var(--warn); background: #fffaf0; }
+    .wifi strong { display: block; font-size: 13px; letter-spacing: .4px; color: var(--warn); margin-bottom: 4px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .tile {
+      display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+      background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 15px 14px;
+      font-size: 14px; font-weight: 700; color: var(--ink); text-align: left;
+      cursor: pointer; min-height: 96px; transition: transform .06s ease, border-color .2s;
+    }
+    .tile:active { transform: scale(.98); }
+    .tile .emoji { font-size: 24px; }
+    .tile small { font-weight: 500; color: var(--muted); font-size: 11px; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      border: 0; border-radius: 14px; padding: 13px 16px; font-size: 15px; font-weight: 800;
+      background: var(--brand); color: #fff; cursor: pointer; width: 100%;
+    }
+    .btn.secondary { background: #f1ebff; color: var(--brand-dark); }
+    .btn.ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+    .btn.small { width: auto; padding: 9px 13px; font-size: 13px; border-radius: 11px; }
+    .btn:disabled { opacity: .55; cursor: not-allowed; }
+    .row { display: flex; gap: 10px; align-items: center; }
+    .row.between { justify-content: space-between; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .tag { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .3px; }
+    .tag.new { background: #eef2ff; color: #3730a3; }
+    .tag.preparing { background: #fff7ed; color: #9a3412; }
+    .tag.ready { background: #ecfdf5; color: var(--ok); }
+    .tag.served { background: #f1f5f9; color: #475569; }
+    .tag.cancelled { background: #fff1f2; color: var(--danger); }
+    .tag.pending { background: #fff7ed; color: var(--warn); }
+    .tag.accepted, .tag.in_progress { background: #eef2ff; color: #3730a3; }
+    .tag.completed { background: #ecfdf5; color: var(--ok); }
+    .tag.rejected { background: #fff1f2; color: var(--danger); }
+    .item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+    .item:last-child { border-bottom: 0; }
+    .item .info { flex: 1; min-width: 0; }
+    .item h3 { font-size: 14px; margin: 0 0 2px; font-weight: 750; }
+    .item p { margin: 0; color: var(--muted); font-size: 12px; }
+    .item .price { font-weight: 800; font-size: 14px; white-space: nowrap; }
+    .veg { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--ok); border-radius: 3px; position: relative; vertical-align: -1px; margin-right: 5px; }
+    .veg::after { content: ""; width: 6px; height: 6px; background: var(--ok); border-radius: 50%; position: absolute; inset: 1px; }
+    .veg.nonveg { border-color: var(--danger); }
+    .veg.nonveg::after { background: var(--danger); }
+    .qty { display: inline-flex; align-items: center; gap: 8px; }
+    .qty button { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--line); background: #fff; font-size: 18px; font-weight: 800; cursor: pointer; }
+    .empty { text-align: center; color: var(--muted); padding: 26px 8px; font-size: 14px; }
+    .banner-error { background: #fff1f2; border: 1px solid #fecdd3; color: #9f1239; border-radius: 14px; padding: 14px; margin-bottom: 14px; font-size: 14px; }
+    .banner-error strong { display: block; font-size: 13px; letter-spacing: .4px; margin-bottom: 3px; }
+    .toast {
+      position: fixed; left: 16px; right: 16px; bottom: 84px; z-index: 60;
+      background: #1e1b2e; color: #fff; border-radius: 14px; padding: 13px 15px; font-size: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.22); display: none;
+    }
+    .toast.show { display: block; }
+    nav.bottom {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+      background: rgba(255,255,255,.97); backdrop-filter: blur(8px);
+      border-top: 1px solid var(--line); display: flex; justify-content: space-around;
+      padding: 7px 4px calc(7px + env(safe-area-inset-bottom));
+    }
+    nav.bottom button {
+      border: 0; background: none; color: var(--muted); font-size: 11px; font-weight: 700;
+      display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 5px 8px; cursor: pointer;
+    }
+    nav.bottom button .emoji { font-size: 20px; }
+    nav.bottom button.active { color: var(--brand-dark); }
+    .hidden { display: none !important; }
+    .cart-bar {
+      position: fixed; left: 16px; right: 16px; bottom: 78px; z-index: 40;
+      background: var(--brand-dark); color: #fff; border-radius: 16px; padding: 12px 14px;
+      display: none; align-items: center; justify-content: space-between; gap: 12px;
+      box-shadow: 0 10px 26px rgba(76,29,149,.3);
+    }
+    .cart-bar.show { display: flex; }
+    .cart-bar button { background: #fff; color: var(--brand-dark); border: 0; border-radius: 11px; padding: 9px 14px; font-weight: 800; }
+    .line { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 5px 0; }
+    .line.total { border-top: 1px dashed var(--line); margin-top: 6px; padding-top: 10px; font-weight: 800; font-size: 15px; }
+    .bill-section { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 10px; }
+    .bill-section h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); margin: 0 0 6px; }
+    .modal { position: fixed; inset: 0; background: rgba(16,10,30,.55); z-index: 80; display: none; align-items: flex-end; }
+    .modal.show { display: flex; }
+    .modal .sheet { background: #fff; width: 100%; max-height: 88vh; overflow: auto; border-radius: 22px 22px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); }
+    .modal h3 { margin: 0 0 4px; font-size: 17px; }
+    input, select, textarea {
+      width: 100%; border: 1px solid var(--line); border-radius: 12px; padding: 12px;
+      font: inherit; background: #fff; color: var(--ink); margin-top: 6px;
+    }
+    label { font-size: 12px; font-weight: 700; color: var(--muted); }
+    .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading { text-align: center; padding: 40px 10px; color: var(--muted); }
+    .loading .dot { width: 26px; height: 26px; border: 3px solid var(--line); border-top-color: var(--brand); border-radius: 50%; margin: 0 auto 12px; animation: spin .8s linear infinite; }
+    a { color: var(--brand-dark); }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="brand-row">
+      <img id="hotel-logo" src="/logo.png" alt="Hotel logo">
+      <div>
+        <h1 id="hotel-name">Hotel Guest Services</h1>
+        <p id="hotel-sub">Restaurant ordering, room bill and assistance</p>
+      </div>
+    </div>
+    <div class="room-chip" id="room-chip">Room —</div>
+    <p class="welcome" id="welcome">Welcome. Scan the QR code in your room for dining and guest services.</p>
+  </header>
+
+  <main>
+    <div id="global-error" class="banner-error hidden">
+      <strong>UNABLE TO CONNECT</strong>
+      The hotel guest service system is currently unreachable. Please contact reception.
+    </div>
+
+    <div id="loading" class="loading"><div class="dot"></div>Connecting to hotel services…</div>
+
+    <div id="content" class="hidden">
+
+
+      <!-- HOME -->
+      <section id="view-home">
+        <div class="card">
+          <h2>How can we help you today?</h2>
+          <p class="sub" id="stay-summary"></p>
+          <div class="grid">
+            <button class="tile" data-action="open-menu"><span class="emoji">🍽️</span>Restaurant Menu<small>Browse food &amp; beverages</small></button>
+            <button class="tile" data-action="open-orders"><span class="emoji">📦</span>My Orders<small>Track preparation &amp; delivery</small></button>
+            <button class="tile" data-action="open-bill"><span class="emoji">🧾</span>My Room Bill<small>Charges &amp; balance</small></button>
+            <button class="tile" data-action="open-requests"><span class="emoji">🛎️</span>Room Service<small>Housekeeping, towels, help</small></button>
+            <button class="tile" data-action="open-requests"><span class="emoji">🧹</span>Housekeeping<small>Request cleaning</small></button>
+            <button class="tile" data-action="open-requests"><span class="emoji">🔧</span>Maintenance<small>Report a problem</small></button>
+            <button class="tile" data-action="open-requests"><span class="emoji">📞</span>Request Reception<small>Assistance from the desk</small></button>
+            <button class="tile" data-action="open-help"><span class="emoji">🆘</span>Help &amp; Support<small>Contacts &amp; emergency</small></button>
+          </div>
+        </div>
+      </section>
+
+      <!-- MENU -->
+      <section id="view-menu" class="hidden">
+        <div class="card">
+          <div class="row between">
+            <div><h2>Restaurant Menu</h2><p class="sub" id="menu-note"></p></div>
+            <button class="btn ghost small" data-action="go-home">Back</button>
+          </div>
+          <div class="row" style="overflow-x:auto; padding-bottom:6px" id="menu-categories"></div>
+          <div id="menu-items"></div>
+        </div>
+      </section>
+
+      <!-- ORDERS -->
+      <section id="view-orders" class="hidden">
+        <div class="card">
+          <div class="row between">
+            <div><h2>My Orders</h2><p class="sub">Updates automatically every 20 seconds</p></div>
+            <button class="btn ghost small" data-action="refresh-orders">Refresh</button>
+          </div>
+          <div id="orders-list"></div>
+        </div>
+      </section>
+
+      <!-- BILL -->
+      <section id="view-bill" class="hidden">
+        <div class="card">
+          <div class="row between">
+            <div><h2>My Room Bill</h2><p class="sub" id="bill-updated"></p></div>
+            <button class="btn ghost small" data-action="refresh-bill">Refresh</button>
+          </div>
+          <div id="bill-content"></div>
+        </div>
+      </section>
+
+      <!-- REQUESTS -->
+      <section id="view-requests" class="hidden">
+        <div class="card">
+          <div class="row between">
+            <div><h2>Help &amp; Room Service</h2><p class="sub">Tell us what you need and our team will respond.</p></div>
+            <button class="btn ghost small" data-action="go-home">Back</button>
+          </div>
+          <div class="grid" id="request-tiles">
+            <button class="tile" data-request="housekeeping"><span class="emoji">🧹</span>Room cleaning</button>
+            <button class="tile" data-request="towels"><span class="emoji">🧺</span>Fresh towels</button>
+            <button class="tile" data-request="room_service"><span class="emoji">🛎️</span>Room service</button>
+            <button class="tile" data-request="reception"><span class="emoji">📞</span>Reception assistance</button>
+            <button class="tile" data-request="maintenance"><span class="emoji">🔧</span>Maintenance</button>
+            <button class="tile" data-request="problem"><span class="emoji">⚠️</span>Report a problem</button>
+            <button class="tile" data-request="general"><span class="emoji">💬</span>General assistance</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>My Requests</h2>
+          <div id="requests-list"><div class="empty">No requests yet.</div></div>
+        </div>
+      </section>
+
+      <!-- HELP -->
+      <section id="view-help" class="hidden">
+        <div class="card">
+          <div class="row between">
+            <div><h2>Help &amp; Support</h2><p class="sub">We are here for you.</p></div>
+            <button class="btn ghost small" data-action="go-home">Back</button>
+          </div>
+          <div id="help-contacts"></div>
+          <div style="margin-top:14px">
+            <button class="btn secondary" data-request="general">Send a message to the team</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div class="cart-bar" id="cart-bar">
+    <div><strong id="cart-count">0 items</strong><div style="font-size:12px;opacity:.8" id="cart-total">₹0.00</div></div>
+    <button id="cart-open">Review order</button>
+  </div>
+
+  <nav class="bottom" id="bottom-nav">
+    <button data-action="go-home" data-nav="home"><span class="emoji">🏠</span>Home</button>
+    <button data-action="open-menu" data-nav="menu"><span class="emoji">🍽️</span>Menu</button>
+    <button data-action="open-orders" data-nav="orders"><span class="emoji">📦</span>Orders</button>
+    <button data-action="open-bill" data-nav="bill"><span class="emoji">🧾</span>Bill</button>
+    <button data-action="open-requests" data-nav="requests"><span class="emoji">🛎️</span>Help</button>
+  </nav>
+
+  <div class="modal" id="cart-modal">
+    <div class="sheet">
+      <h3>Your order</h3>
+      <p class="muted">Charged to your room bill. No payment is needed now.</p>
+      <div id="cart-lines"></div>
+      <label for="cart-note" style="display:block;margin-top:12px">Special instructions (optional)</label>
+      <textarea id="cart-note" rows="2" maxlength="250" placeholder="Less spicy, no onion…"></textarea>
+      <div id="cart-summary" style="margin-top:12px"></div>
+      <button class="btn" id="place-order" style="margin-top:12px">Send order to kitchen</button>
+      <button class="btn ghost" id="cart-close" style="margin-top:8px">Keep browsing</button>
+    </div>
+  </div>
+
+  <div class="modal" id="request-modal">
+    <div class="sheet">
+      <h3 id="request-title">New request</h3>
+      <p class="muted" id="request-hint"></p>
+      <label for="request-description">Details (optional)</label>
+      <textarea id="request-description" rows="3" maxlength="500" placeholder="Tell us what you need…"></textarea>
+      <button class="btn" id="request-send" style="margin-top:12px">Send request</button>
+      <button class="btn ghost" id="request-cancel" style="margin-top:8px">Cancel</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const SESSION_KEY = 'nexuzy_guest_session';
+    const state = {
+      session: null,
+      hotel: null,
+      room: null,
+      guest: null,
+      stay: null,
+      menu: { categories: [], items: [] },
+      cart: [],
+      activeCategory: 'all',
+      orders: [],
+      requests: [],
+      view: 'home',
+      pollTimer: null
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const money = (value, symbol) => `${symbol || '₹'}${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const esc = (value) => String(value == null ? '' : value).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+
+    function toast(message, ms = 3200) {
+      const el = $('toast');
+      el.textContent = message;
+      el.classList.add('show');
+      clearTimeout(toast.timer);
+      toast.timer = setTimeout(() => el.classList.remove('show'), ms);
+    }
+
+    function showError(message, fatal = false) {
+      const box = $('global-error');
+      box.classList.remove('hidden');
+      if (message) box.innerHTML = `<strong>UNABLE TO CONNECT</strong>${esc(message)}`;
+      if (fatal) {
+        $('loading').classList.add('hidden');
+        $('content').classList.add('hidden');
+      }
+    }
+
+    function hideError() { $('global-error').classList.add('hidden'); }
+
+    async function guestApi(path, options = {}) {
+      const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+      if (state.session) headers['X-Guest-Session'] = state.session;
+      let response;
+      try {
+        response = await fetch(`/api/v1/guest-room${path}`, { ...options, headers });
+      } catch (err) {
+        showError('The hotel guest service system is currently unreachable. Please contact reception.');
+        throw err;
+      }
+      let data = null;
+      try { data = await response.json(); } catch (err) { data = {}; }
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          sessionStorage.removeItem(SESSION_KEY);
+          state.session = null;
+        }
+        const error = new Error(data.error || 'The hotel guest service system is currently unreachable. Please contact reception.');
+        error.status = response.status;
+        throw error;
+      }
+      hideError();
+      return data;
+    }
+
+    function showView(name) {
+      state.view = name;
+      ['home', 'menu', 'orders', 'bill', 'requests', 'help'].forEach(v => {
+        const el = $(`view-${v}`);
+        if (el) el.classList.toggle('hidden', v !== name);
+      });
+      document.querySelectorAll('#bottom-nav button').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.nav === name || (name === 'help' && btn.dataset.nav === 'requests'));
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (name === 'orders') loadOrders();
+      if (name === 'bill') loadBill();
+      if (name === 'requests') loadRequests();
+      if (name !== 'menu') $('cart-bar').classList.remove('show');
+      if (name === 'menu' && state.cart.length) $('cart-bar').classList.add('show');
+    }
+
+    function applyBranding() {
+      const hotel = state.hotel || {};
+      $('hotel-name').textContent = hotel.name || 'Hotel Guest Services';
+      $('hotel-sub').textContent = 'Restaurant ordering, room bill and assistance';
+      if (hotel.logo_url) $('hotel-logo').src = hotel.logo_url;
+      $('room-chip').textContent = `Room ${state.room ? state.room.number : '—'}`;
+      $('welcome').textContent = `Welcome${state.guest && state.guest.name ? ', ' + state.guest.name : ''}. We are delighted to have you with us.`;
+      if ($('wifi-text')) $('wifi-text').textContent = hotel.wifi_instructions || '';
+      $('stay-summary').textContent = state.stay
+        ? `Stay ${state.stay.stay_number} · Check-out ${String(state.stay.expected_check_out || '').slice(0, 10)}`
+        : '';
+      const features = (hotel.features) || {};
+      document.querySelectorAll('[data-action="open-menu"], [data-action="open-orders"]').forEach(el => {
+        el.disabled = !features.restaurant_ordering;
+      });
+      document.querySelectorAll('[data-action="open-bill"]').forEach(el => { el.disabled = !features.room_bill; });
+      document.querySelectorAll('[data-request]').forEach(el => { el.disabled = !features.service_requests; });
+    }
+
+    async function resolveQr() {
+      const params = new URLSearchParams(window.location.search);
+      const qrToken = (params.get('qr') || '').trim();
+      if (!qrToken) {
+        $('loading').classList.add('hidden');
+        showError('Please scan the QR code printed in your room, or ask reception for help.', true);
+        return;
+      }
+      try {
+        const data = await fetch('/api/v1/guest-room/resolve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ qr_token: qrToken })
+        }).then(async (response) => {
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(body.error || 'Unable to start your guest session.');
+          return body;
+        });
+        state.session = data.session_token;
+        state.hotel = data.hotel;
+        state.room = data.room;
+        state.guest = data.guest;
+        state.stay = data.stay;
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(data));
+        $('loading').classList.add('hidden');
+        $('content').classList.remove('hidden');
+        applyBranding();
+        await loadMenu();
+        showView('home');
+      } catch (err) {
+        $('loading').classList.add('hidden');
+        showError(err.message, true);
+      }
+    }
+
+    function restoreSession() {
+      const raw = sessionStorage.getItem(SESSION_KEY);
+      if (!raw) return false;
+      try {
+        const data = JSON.parse(raw);
+        if (!data.session_token) return false;
+        state.session = data.session_token;
+        state.hotel = data.hotel;
+        state.room = data.room;
+        state.guest = data.guest;
+        state.stay = data.stay;
+        $('loading').classList.add('hidden');
+        $('content').classList.remove('hidden');
+        applyBranding();
+        return true;
+      } catch (err) {
+        return false;
+      }
+    }
+
+    async function loadMenu() {
+      try {
+        const data = await guestApi('/menu');
+        state.menu = data;
+        renderMenu();
+      } catch (err) {
+        if (err.status === 401) toast('Please scan your room QR again.');
+      }
+    }
+
+    function renderMenu() {
+      const { categories, items, ordering_enabled } = state.menu;
+      $('menu-note').textContent = ordering_enabled
+        ? 'Add items to your order. Charges go directly to your room bill.'
+        : 'Restaurant ordering is currently unavailable. Please call reception.';
+
+      const cats = $('menu-categories');
+      cats.innerHTML = '';
+      const allBtn = document.createElement('button');
+      allBtn.className = 'btn small ' + (state.activeCategory === 'all' ? '' : 'secondary');
+      allBtn.textContent = 'All';
+      allBtn.onclick = () => { state.activeCategory = 'all'; renderMenu(); };
+      cats.appendChild(allBtn);
+      (categories || []).forEach(category => {
+        const btn = document.createElement('button');
+        btn.className = 'btn small ' + (state.activeCategory === category.id ? '' : 'secondary');
+        btn.textContent = category.name;
+        btn.onclick = () => { state.activeCategory = category.id; renderMenu(); };
+        cats.appendChild(btn);
+      });
+
+      const list = $('menu-items');
+      list.innerHTML = '';
+      const filtered = (items || []).filter(item => state.activeCategory === 'all' || item.category_id === state.activeCategory);
+      if (!filtered.length) {
+        list.innerHTML = '<div class="empty">No dishes are available right now.</div>';
+        return;
+      }
+      filtered.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'item';
+        const addons = (item.addons || []).map(a => `<div class="muted" style="font-size:11px">+ ${esc(a.name)} ${money(a.price, state.hotel.currency_symbol)}</div>`).join('');
+        row.innerHTML = `
+          <div class="info">
+            <h3><span class="veg ${item.is_veg ? '' : 'nonveg'}"></span>${esc(item.name)}</h3>
+            <p>${esc(item.description || '')}</p>
+            ${addons}
+            <div class="price" style="margin-top:6px">${money(item.price, state.hotel.currency_symbol)}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;justify-content:center;gap:8px">
+            <div class="qty">
+              <button aria-label="Add one" data-add="${item.id}">+</button>
+            </div>
+          </div>`;
+        list.appendChild(row);
+      });
+
+      list.querySelectorAll('[data-add]').forEach(btn => {
+        btn.addEventListener('click', () => addToCart(btn.dataset.add));
+      });
+    }
+
+    function addToCart(itemId) {
+      const item = state.menu.items.find(i => i.id === itemId);
+      if (!item) return;
+      const existing = state.cart.find(line => line.item.id === itemId);
+      if (existing) existing.quantity += 1;
+      else state.cart.push({ item, quantity: 1, addon_ids: [], notes: '' });
+      updateCartBar();
+      toast(`${item.name} added`);
+    }
+
+    function updateCartBar() {
+      const count = state.cart.reduce((sum, line) => sum + line.quantity, 0);
+      const total = state.cart.reduce((sum, line) => sum + line.quantity * Number(line.item.price), 0);
+      $('cart-count').textContent = `${count} item${count === 1 ? '' : 's'}`;
+      $('cart-total').textContent = money(total, state.hotel.currency_symbol);
+      const visible = state.view === 'menu' && count > 0;
+      $('cart-bar').classList.toggle('show', visible);
+    }
+
+    function renderCart() {
+      const lines = $('cart-lines');
+      lines.innerHTML = '';
+      if (!state.cart.length) {
+        lines.innerHTML = '<div class="empty">Your cart is empty.</div>';
+        return;
+      }
+      state.cart.forEach((line, index) => {
+        const div = document.createElement('div');
+        div.className = 'line';
+        div.innerHTML = `
+          <div style="flex:1">
+            <strong>${esc(line.item.name)}</strong>
+            <div class="muted" style="font-size:12px">${money(line.item.price, state.hotel.currency_symbol)} each</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button class="btn ghost small" data-dec="${index}">−</button>
+            <strong>${line.quantity}</strong>
+            <button class="btn ghost small" data-inc="${index}">+</button>
+          </div>`;
+        lines.appendChild(div);
+      });
+      const subtotal = state.cart.reduce((sum, line) => sum + line.quantity * Number(line.item.price), 0);
+      const taxRate = state.menu.restaurant_tax_enabled && state.cart.length ? Number(state.cart[0].item.tax_rate || 0) : 0;
+      const tax = Math.round(subtotal * taxRate) / 100;
+      $('cart-summary').innerHTML = `
+        <div class="line"><span>Subtotal</span><span>${money(subtotal, state.hotel.currency_symbol)}</span></div>
+        ${taxRate > 0 ? `<div class="line"><span>GST (${taxRate}%)</span><span>${money(tax, state.hotel.currency_symbol)}</span></div>` : ''}
+        <div class="line total"><span>Total added to room bill</span><span>${money(subtotal + tax, state.hotel.currency_symbol)}</span></div>`;
+
+      lines.querySelectorAll('[data-inc]').forEach(b => b.onclick = () => {
+        state.cart[Number(b.dataset.inc)].quantity += 1; renderCart(); updateCartBar();
+      });
+      lines.querySelectorAll('[data-dec]').forEach(b => b.onclick = () => {
+        const i = Number(b.dataset.dec);
+        state.cart[i].quantity -= 1;
+        if (state.cart[i].quantity <= 0) state.cart.splice(i, 1);
+        renderCart(); updateCartBar();
+      });
+    }
+
+    async function placeOrder() {
+      if (!state.cart.length) return;
+      const button = $('place-order');
+      button.disabled = true;
+      button.textContent = 'Sending to kitchen…';
+      try {
+        const payload = {
+          items: state.cart.map(line => ({
+            menu_item_id: line.item.id,
+            quantity: line.quantity,
+            notes: line.notes || undefined,
+            addon_ids: line.addon_ids
+          })),
+          idempotency_key: `guest-${state.stay.stay_number}-${Date.now()}`
+        };
+        const data = await guestApi('/orders', { method: 'POST', body: JSON.stringify(payload) });
+        state.cart = [];
+        updateCartBar();
+        $('cart-modal').classList.remove('show');
+        toast(`Order ${data.order.order_number} sent. It has been added to your room bill.`, 5000);
+        showView('orders');
+        await loadOrders();
+      } catch (err) {
+        toast(err.message, 5000);
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Send order to kitchen';
+        renderCart();
+      }
+    }
+
+    async function loadOrders() {
+      try {
+        const data = await guestApi('/orders');
+        state.orders = data.orders || [];
+        renderOrders();
+      } catch (err) {
+        if (err.status === 401) toast('Please scan your room QR again.');
+      }
+    }
+
+    function statusTag(status) {
+      const label = String(status || 'new').replace(/_/g, ' ');
+      return `<span class="tag ${esc(status)}">${esc(label)}</span>`;
+    }
+
+    function renderOrders() {
+      const list = $('orders-list');
+      if (!state.orders.length) {
+        list.innerHTML = '<div class="empty">You have not ordered anything yet.</div>';
+        return;
+      }
+      list.innerHTML = state.orders.map(order => `
+        <div style="border-bottom:1px solid var(--line);padding:12px 0">
+          <div class="row between">
+            <div><strong>${esc(order.order_number)}</strong><div class="muted" style="font-size:12px">${esc(String(order.created_at).slice(0, 16))}</div></div>
+            ${statusTag(order.tracking_status)}
+          </div>
+          <div style="margin-top:8px">
+            ${(order.items || []).map(item => `<div class="line"><span>${item.quantity} × ${esc(item.item_name)}</span><span>${money(item.total_amount, state.hotel.currency_symbol)}</span></div>`).join('')}
+            <div class="line total"><span>Total</span><span>${money(order.total_amount, state.hotel.currency_symbol)}</span></div>
+            ${(order.tickets || []).length ? `<div class="muted" style="font-size:11px;margin-top:4px">KOT: ${order.tickets.map(t => esc(t.kot_number) + ' (' + esc(t.station) + ')').join(', ')}</div>` : ''}
+          </div>
+        </div>`).join('');
+    }
+
+    async function loadBill() {
+      try {
+        const data = await guestApi('/bill');
+        renderBill(data);
+      } catch (err) {
+        $('bill-content').innerHTML = `<div class="banner-error"><strong>BILL UNAVAILABLE</strong>${esc(err.message)}</div>`;
+      }
+    }
+
+    function moneyLine(label, value) {
+      return `<div class="line"><span>${esc(label)}</span><span>${value}</span></div>`;
+    }
+
+    function renderBill(bill) {
+      if (bill.empty) {
+        $('bill-content').innerHTML = '<div class="empty">No charges have been posted to your room yet.</div>';
+        return;
+      }
+      $('bill-updated').textContent = `Updated ${new Date(bill.refreshed_at).toLocaleTimeString()}`;
+      const symbol = bill.currency_symbol;
+      const payable = bill.summary.balance_due > 0 ? bill.summary.balance_due : 0;
+      const refund = bill.summary.refund_due || 0;
+      const section = (title, lines, total) => {
+        if (!lines || !lines.length) return '';
+        return `<div class="bill-section"><h3>${esc(title)}</h3>
+          ${lines.map(l => `<div class="line"><span>${esc(l.date)} · ${esc(l.description)}${l.quantity !== 1 ? ' × ' + l.quantity : ''}</span><span>${money(l.total_amount, symbol)}</span></div>`).join('')}
+          <div class="line total"><span>${esc(title)} total</span><span>${money(total, symbol)}</span></div></div>`;
+      };
+      $('bill-content').innerHTML = `
+        <div style="border:1px solid var(--line);border-radius:16px;padding:16px;background:linear-gradient(145deg,#111827,#1f2937);color:#fff">
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#9ca3af">Guest</div>
+          <div style="font-size:20px;font-weight:800;margin:2px 0 12px">${esc(bill.guest_name || 'Guest')}</div>
+          <div class="row between" style="font-size:13px;color:#d1d5db"><span>Room ${esc(bill.room_number)}</span><span>Stay ${esc(bill.stay_number)}</span></div>
+          <div class="line" style="margin-top:12px;font-size:13px"><span>Total bill</span><span>${money(bill.summary.total_charges, symbol)}</span></div>
+          <div class="line" style="font-size:13px"><span>Payments received</span><span>− ${money(bill.summary.payments_received, symbol)}</span></div>
+          ${refund ? `<div class="line" style="font-size:13px"><span>Refund due to you</span><span>${money(refund, symbol)}</span></div>` : ''}
+          <div style="border-top:1px solid #374151;margin-top:12px;padding-top:12px;display:flex;justify-content:space-between;align-items:end;gap:12px">
+            <div><div style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#9ca3af">${payable > 0 ? 'Total payable now' : (refund > 0 ? 'Refund due' : 'Amount payable')}</div>
+            <div style="font-size:12px;color:#9ca3af">${payable > 0 ? 'Settle at reception during checkout' : (refund > 0 ? 'Please contact reception' : 'No balance due')}</div></div>
+            <div style="font-size:30px;font-weight:900;line-height:1;color:${payable > 0 ? '#fbbf24' : '#34d399'}">${money(payable > 0 ? payable : refund, symbol)}</div>
+          </div>
+        </div>
+        <details class="bill-section" style="margin-top:14px">
+          <summary style="cursor:pointer;font-weight:700;font-size:13px;color:var(--text)">View full charge breakdown</summary>
+          ${section('Room charges', bill.charges.room.lines, bill.charges.room.total)}
+          ${section('Restaurant & room service', bill.charges.restaurant.lines, bill.charges.restaurant.total)}
+          ${bill.charges.local_tax.total ? section(bill.charges.local_tax.name, bill.charges.local_tax.lines, bill.charges.local_tax.total) : ''}
+          ${section('Other charges', bill.charges.other.lines, bill.charges.other.total)}
+          ${bill.charges.rounding_adjustment ? `<div class="line"><span>Rounding adjustment</span><span>${money(bill.charges.rounding_adjustment, symbol)}</span></div>` : ''}
+          <div class="bill-section">
+            <h3>Summary</h3>
+            ${moneyLine('Total charges', money(bill.summary.total_charges, symbol))}
+            ${moneyLine('Total taxes', money(bill.summary.total_taxes, symbol))}
+            ${moneyLine('Payments received', '− ' + money(bill.summary.payments_received, symbol))}
+            ${bill.summary.refunds ? moneyLine('Refunds', money(bill.summary.refunds, symbol)) : ''}
+            <div class="line total"><span>Balance payable</span><span>${money(payable, symbol)}</span></div>
+          </div>
+          ${(bill.payments || []).length ? `<div class="bill-section"><h3>Payments</h3>${bill.payments.map(p => `<div class="line"><span>${esc(p.receipt_number)} · ${esc(p.method)}</span><span>${money(p.amount, symbol)}</span></div>`).join('')}</div>` : ''}
+        </details>
+        <div class="muted" style="margin-top:12px;font-size:11px">This bill is read-only. Please contact reception for any correction.</div>`;
+    }
+
+    async function loadRequests() {
+      try {
+        const data = await guestApi('/requests');
+        state.requests = data.requests || [];
+        renderRequests();
+      } catch (err) {
+        if (err.status === 401) toast('Please scan your room QR again.');
+      }
+    }
+
+    function renderRequests() {
+      const list = $('requests-list');
+      if (!state.requests.length) {
+        list.innerHTML = '<div class="empty">No requests yet.</div>';
+        return;
+      }
+      list.innerHTML = state.requests.map(request => `
+        <div class="line" style="align-items:flex-start">
+          <div>
+            <strong>${esc(request.category.replace(/_/g, ' '))}</strong>
+            <div class="muted" style="font-size:12px">${esc(request.description || '')}</div>
+            <div class="muted" style="font-size:11px">${esc(String(request.created_at).slice(0, 16))}</div>
+          </div>
+          ${statusTag(request.status)}
+        </div>`).join('');
+    }
+
+    function openRequest(category) {
+      const labels = {
+        reception: ['Reception assistance', 'Tell us how we can help.'],
+        housekeeping: ['Housekeeping', 'Request room cleaning or fresh linen.'],
+        towels: ['Fresh towels', 'We will send fresh towels to your room.'],
+        cleaning: ['Room cleaning', 'Request a room cleaning visit.'],
+        maintenance: ['Maintenance', 'Describe the maintenance issue.'],
+        room_service: ['Room service', 'Tell us what you need in your room.'],
+        general: ['General assistance', 'How can the team help?'],
+        problem: ['Report a problem', 'Please describe the problem.']
+      };
+      const [title, hint] = labels[category] || ['New request', ''];
+      $('request-title').textContent = title;
+      $('request-hint').textContent = hint;
+      $('request-description').value = '';
+      $('request-description').placeholder = hint || 'Tell us what you need…';
+      $('request-send').dataset.category = category;
+      $('request-modal').classList.add('show');
+    }
+
+    async function sendRequest() {
+      const category = $('request-send').dataset.category;
+      const description = $('request-description').value.trim();
+      const button = $('request-send');
+      button.disabled = true;
+      button.textContent = 'Sending…';
+      try {
+        await guestApi('/requests', { method: 'POST', body: JSON.stringify({ category, description }) });
+        $('request-modal').classList.remove('show');
+        toast('Your request has been sent to the hotel team.');
+        showView('requests');
+        await loadRequests();
+      } catch (err) {
+        toast(err.message, 5000);
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Send request';
+      }
+    }
+
+    function renderHelp() {
+      const hotel = state.hotel || {};
+      const contacts = hotel.contacts || {};
+      $('help-contacts').innerHTML = `
+        ${contacts.reception ? `<div class="line"><span>Reception</span><a href="tel:${esc(contacts.reception)}">${esc(contacts.reception)}</a></div>` : '<div class="muted">Reception number is available at the front desk.</div>'}
+        ${contacts.emergency ? `<div class="line"><span>Emergency</span><a href="tel:${esc(contacts.emergency)}">${esc(contacts.emergency)}</a></div>` : ''}
+        <div class="bill-section"><h3>Assistance</h3>
+          <p class="muted">Use the buttons below to request housekeeping, room service, maintenance or reception help. The team sees requests immediately in the hotel dashboard.</p>
+        </div>`;
+    }
+
+    function openCart() {
+      renderCart();
+      $('cart-note').value = state.cart.find(l => l.notes)?.notes || '';
+      $('cart-modal').classList.add('show');
+    }
+
+    document.addEventListener('click', (event) => {
+      const actionEl = event.target.closest('[data-action]');
+      if (actionEl) {
+        const action = actionEl.dataset.action;
+        if (action === 'go-home') showView('home');
+        if (action === 'open-menu') { state.activeCategory = 'all'; renderMenu(); showView('menu'); }
+        if (action === 'open-orders') showView('orders');
+        if (action === 'open-bill') showView('bill');
+        if (action === 'open-requests') showView('requests');
+        if (action === 'open-help') { renderHelp(); showView('help'); }
+        if (action === 'refresh-orders') loadOrders();
+        if (action === 'refresh-bill') loadBill();
+        return;
+      }
+      const requestEl = event.target.closest('[data-request]');
+      if (requestEl) { openRequest(requestEl.dataset.request); return; }
+    });
+
+    $('cart-open').addEventListener('click', openCart);
+    $('cart-close').addEventListener('click', () => $('cart-modal').classList.remove('show'));
+    $('place-order').addEventListener('click', placeOrder);
+    $('request-cancel').addEventListener('click', () => $('request-modal').classList.remove('show'));
+    $('request-send').addEventListener('click', sendRequest);
+    $('cart-note').addEventListener('input', (event) => {
+      state.cart.forEach(line => { line.notes = event.target.value.slice(0, 250); });
+    });
+
+    // Initial connection
+    (async () => {
+      if (restoreSession()) {
+        try {
+          await guestApi('/orders');
+          await loadMenu();
+          showView('home');
+          return;
+        } catch (err) {
+          sessionStorage.removeItem(SESSION_KEY);
+          state.session = null;
+        }
+      }
+      await resolveQr();
+    })();
+
+    setInterval(() => {
+      if (state.view === 'orders') loadOrders();
+      if (state.view === 'bill') loadBill();
+      if (state.view === 'requests') loadRequests();
+    }, 20000);
+  </script>
+</body>
+</html>
